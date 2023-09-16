@@ -315,7 +315,8 @@ object TestTop_L2 extends App {
   val top = DisableMonitors(p => LazyModule(new TestTop_L2()(p)) )(config)
 
   (new ChiselStage).execute(Array("--target", "verilog") ++ args, Seq(
-    ChiselGeneratorAnnotation(() => top.module)
+    ChiselGeneratorAnnotation(() => top.module),
+    FirtoolOption("--disable-annotation-unknown")
   ))
 }
 
@@ -330,8 +331,9 @@ object TestTop_L2L3 extends App {
   val top = DisableMonitors(p => LazyModule(new TestTop_L2L3()(p)) )(config)
    
 
-  (new ChiselStage).execute(Array("--target", "verilog", "--help") ++ args, Seq(
-    ChiselGeneratorAnnotation(() => top.module)
+  (new ChiselStage).execute(Array("--target", "verilog") ++ args, Seq(
+    ChiselGeneratorAnnotation(() => top.module),
+    FirtoolOption("--disable-annotation-unknown")
   ))
 }
 
@@ -346,6 +348,7 @@ object TestTop_FullSys extends App {
   val top = DisableMonitors( p => LazyModule(new TestTop_FullSys()(p)) )(config)
 
   (new ChiselStage).execute(Array("--target", "verilog") ++ args, Seq(
-    ChiselGeneratorAnnotation(() => top.module)
+    ChiselGeneratorAnnotation(() => top.module),
+    FirtoolOption("--disable-annotation-unknown")
   ))
 }
