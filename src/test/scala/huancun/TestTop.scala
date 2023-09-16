@@ -1,10 +1,10 @@
 package huancun
-
+import circt.stage._
 import chisel3._
 import chisel3.util._
 import huancun.utils.TLClientsMerger
-import chipsalliance.rocketchip.config._
-import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
+import org.chipsalliance.cde.config._
+import chisel3.stage.ChiselGeneratorAnnotation
 import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -18,6 +18,7 @@ class TestTop_L2()(implicit p: Parameters) extends LazyModule {
    *    L2
    */
 
+  override lazy val desiredName: String = "TestTop"
   val delayFactor = 0.5
   val cacheParams = p(HCCacheParamsKey)
 
@@ -76,6 +77,7 @@ class TestTop_L2L3()(implicit p: Parameters) extends LazyModule {
    *    L3
    */
 
+  override lazy val desiredName: String = "TestTop"
   val delayFactor = 0.2
   val cacheParams = p(HCCacheParamsKey)
 
@@ -152,6 +154,16 @@ class TestTop_L2L3()(implicit p: Parameters) extends LazyModule {
 }
 
 class TestTop_FullSys()(implicit p: Parameters) extends LazyModule {
+
+//      l1d   l1d
+//       |     |
+//       l2    l2     dma
+//       |     |       |
+//  ----- L3_banded_xbar -----
+//             |
+//             l3
+
+  override lazy val desiredName: String = "TestTop"
   val cacheParams: HCCacheParameters = p(HCCacheParamsKey)
   val nrL2 = 1
   val L2NBanks = 1
@@ -302,7 +314,7 @@ object TestTop_L2 extends App {
   })
   val top = DisableMonitors(p => LazyModule(new TestTop_L2()(p)) )(config)
 
-  (new ChiselStage).execute(args, Seq(
+  (new ChiselStage).execute(Array("--target", "verilog") ++ args, Seq(
     ChiselGeneratorAnnotation(() => top.module)
   ))
 }
@@ -318,7 +330,7 @@ object TestTop_L2L3 extends App {
   val top = DisableMonitors(p => LazyModule(new TestTop_L2L3()(p)) )(config)
    
 
-  (new ChiselStage).execute(args, Seq(
+  (new ChiselStage).execute(Array("--target", "verilog", "--help") ++ args, Seq(
     ChiselGeneratorAnnotation(() => top.module)
   ))
 }
@@ -333,7 +345,7 @@ object TestTop_FullSys extends App {
   })
   val top = DisableMonitors( p => LazyModule(new TestTop_FullSys()(p)) )(config)
 
-  (new ChiselStage).execute(args, Seq(
+  (new ChiselStage).execute(Array("--target", "verilog") ++ args, Seq(
     ChiselGeneratorAnnotation(() => top.module)
   ))
 }

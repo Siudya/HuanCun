@@ -1,6 +1,6 @@
 package huancun.prefetch
 
-import chipsalliance.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import chisel3._
 
 case class PrefetchReceiverParams(n: Int = 32) extends PrefetchParameters {
