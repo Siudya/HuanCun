@@ -25,8 +25,7 @@ import chisel3.util._
 import freechips.rocketchip.tilelink._
 import huancun.noninclusive.{ProbeHelper, SliceCtrl}
 import huancun.prefetch._
-import huancun.utils.{FastArbiter, LatchFastArbiter}
-import xs.utils.Pipeline
+import xs.utils.{FastArbiter, LatchFastArbiter, Pipeline}
 
 class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends HuanCunModule {
   val io = IO(new Bundle {
