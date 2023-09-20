@@ -114,6 +114,7 @@ case class HCCacheParameters
   enableTopDown: Boolean = false,
   channelBytes: TLChannelBeatBytes = TLChannelBeatBytes(32),
   prefetch: Option[PrefetchParameters] = None,
+  prefetchRecv: Option[PrefetchParameters] = None,
   clientCaches: Seq[CacheParameters] = Nil,
   inclusive: Boolean = true,
   alwaysReleaseData: Boolean = false,
