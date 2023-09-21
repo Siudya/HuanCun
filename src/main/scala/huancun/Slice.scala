@@ -32,6 +32,7 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
     val in = Flipped(TLBundle(edgeIn.bundle))
     val out = TLBundle(edgeOut.bundle)
     val prefetch = prefetchOpt.map(_ => Flipped(new PrefetchIO))
+    val llcRecv = prefetchLlcRecvOpt.map(_ => Flipped(DecoupledIO(new LlcPrefetchRecv)))
     val ctl_req = Flipped(DecoupledIO(new CtrlReq()))
     val ctl_resp = DecoupledIO(new CtrlResp())
     val ctl_ecc = DecoupledIO(new EccInfo())
@@ -137,15 +138,31 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
     b_arb.io.in(1) <> sinkB.io.alloc
     mshrAlloc.io.b_req <> b_arb.io.out
   }
-  if(prefetchOpt.nonEmpty){
-    io.prefetch.get.recv_addr := DontCare
-    val alloc_A_arb = Module(new Arbiter(new MSHRRequest, 2))
-    alloc_A_arb.io.in(0) <> a_req
-    alloc_A_arb.io.in(1) <> pftReqToMSHRReq(io.prefetch.get.req)
-    a_req_buffer.io.in <> alloc_A_arb.io.out
-  } else {
-    a_req_buffer.io.in <> a_req
-  }
+  if(cacheParams.level == 2){
+    if(prefetchOpt.nonEmpty){
+      io.prefetch.get.recv_addr := DontCare
+      val alloc_A_arb = Module(new Arbiter(new MSHRRequest, 2))
+      alloc_A_arb.io.in(0) <> a_req
+      alloc_A_arb.io.in(1) <> pftReqToMSHRReq(io.prefetch.get.req)
+      a_req_buffer.io.in <> alloc_A_arb.io.out
+    } else {
+      a_req_buffer.io.in <> a_req
+    }
+  }else if (cacheParams.level == 3) {
+      if(prefetchLlcRecvOpt.nonEmpty){
+        val alloc_A_arb = Module(new Arbiter(new MSHRRequest, 2))
+        alloc_A_arb.io.in(0) <> a_req
+        alloc_A_arb.io.in(1) <> sppLlcReqToMSHRReq(io.llcRecv.get)
+        a_req_buffer.io.in <> alloc_A_arb.io.out
+        XSPerfAccumulate(cacheParams, "L3_slice_receiver_hit", alloc_A_arb.io.in(1).valid && (alloc_A_arb.io.in(1).bits.opcode === TLMessages.Hint))
+      } else {
+        a_req_buffer.io.in <> a_req
+      }
+    } else{
+      a_req_buffer.io.in <> a_req
+    }
+
+
   mshrAlloc.io.a_req <> a_req_buffer.io.out
   if(ctrl.nonEmpty) { // LLC
     val cmo_req = Pipeline(ctrl.get.io.cmo_req)
@@ -637,6 +654,34 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
     pftReq.ready := mshrReq.ready
     mshrReq
   }
+  def sppLlcReqToMSHRReq(pftReq: DecoupledIO[LlcPrefetchRecv]): DecoupledIO[MSHRRequest] = {
+    val mshrReq = Wire(DecoupledIO(new MSHRRequest()))
+    val address = pftReq.bits.addr
+    val (tag, set, off) = parseAddress(address)
+    mshrReq.valid := pftReq.valid
+    mshrReq.bits.opcode := TLMessages.Hint
+    mshrReq.bits.param := Mux(pftReq.bits.needT, TLHints.PREFETCH_WRITE, TLHints.PREFETCH_READ)
+    mshrReq.bits.size := log2Up(blockBytes).U
+    mshrReq.bits.source := pftReq.bits.source
+    mshrReq.bits.tag := tag
+    mshrReq.bits.set := set
+    mshrReq.bits.off := off
+    mshrReq.bits.mask := Fill(edgeOut.manager.beatBytes, 1.U(1.W))
+    mshrReq.bits.channel := "b001".U
+    mshrReq.bits.needHint.foreach(_ := false.B)
+    mshrReq.bits.isPrefetch.foreach(_ := true.B)
+    mshrReq.bits.isBop.foreach(_ := false.B)
+    mshrReq.bits.alias.foreach(_ := DontCare)
+    mshrReq.bits.preferCache := true.B
+    mshrReq.bits.fromProbeHelper := false.B
+    mshrReq.bits.fromCmoHelper := false.B
+    mshrReq.bits.bufIdx := DontCare
+    mshrReq.bits.dirty := false.B
+    mshrReq.bits.needProbeAckData.foreach(_ := false.B)
+    pftReq.ready := mshrReq.ready
+    mshrReq
+  }
+
 
   val perfinfo = IO(Output(Vec(numPCntHc, (UInt(6.W)))))
   perfinfo := DontCare

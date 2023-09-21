@@ -21,6 +21,7 @@ package huancun
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
+import huancun.prefetch.PrefetchBundle
 
 abstract class InnerTask(implicit p: Parameters) extends HuanCunBundle {
   val sourceId = UInt(sourceIdBits.W)
