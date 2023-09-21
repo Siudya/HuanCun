@@ -2,7 +2,7 @@ package huancun
 import circt.stage._
 import chisel3._
 import chisel3.util._
-import huancun.utils.TLClientsMerger
+import xs.utils.tl.TLClientsMerger
 import org.chipsalliance.cde.config._
 import chisel3.stage.ChiselGeneratorAnnotation
 import freechips.rocketchip.util._

@@ -26,6 +26,7 @@ import freechips.rocketchip.tilelink._
 import huancun.noninclusive.{ProbeHelper, SliceCtrl}
 import huancun.prefetch._
 import xs.utils.{FastArbiter, LatchFastArbiter, Pipeline}
+import huancun.utils.XSPerfAccumulate
 
 class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends HuanCunModule {
   val io = IO(new Bundle {
