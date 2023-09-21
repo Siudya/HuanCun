@@ -247,7 +247,8 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
   case _ => None
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val banks = node.in.size
     val io = IO(new Bundle {
       val perfEvents = Vec(banks, Vec(numPCntHc,Output(UInt(6.W))))
