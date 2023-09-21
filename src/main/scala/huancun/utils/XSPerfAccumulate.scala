@@ -116,7 +116,7 @@ object XSPerfPrint {
     apply(Printable.pack(fmt, data: _*))
 
   def apply(pable: Printable): Any = {
-    val commonInfo = p"[PERF ][time=${GTimer()}] 9527: "
+    val commonInfo = p"[PERF ][time=${GTimer()}] _LOG_MODULE_PATH_: "
     printf(commonInfo + pable)
   }
 }
