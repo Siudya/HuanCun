@@ -197,7 +197,7 @@ class Directory(parentName: String = "Unknown")(implicit p: Parameters)
     )
   )
   val mbistClientDirPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${parentName}_mbistClientDirPipe")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistClientDirPipe")
   } else {
     None
   }
@@ -239,7 +239,7 @@ class Directory(parentName: String = "Unknown")(implicit p: Parameters)
   )
 
   val mbistSelfDirPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${parentName}_mbistSelfDirPipe")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistSelfDirPipe")
   } else {
     None
   }

@@ -124,7 +124,7 @@ class RecentRequestTable(parentName:String = "Unknown")(implicit p: Parameters) 
     )
   )
   val mbistBOPPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${parentName}_mbistBOPPipe")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistBOPPipe")
   } else {
     None
   }

@@ -72,7 +72,7 @@ class Directory(parentName:String = "Unknown")(implicit p: Parameters) extends B
     ) with UpdateOnAcquire
   )
   val mbistDirPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${parentName}_mbistDirPipe")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistDirPipe")
   } else {
     None
   }
