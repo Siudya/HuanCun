@@ -111,11 +111,10 @@ class SubDirectory[T <: Data](
     parentName = parentName + "metaArray_")
   )
 
-  val mbistMetaPipeline = if(p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistMetaPipe")))
-  } else {
-    None
-  }
+  val mbistMetaPipeline = MBISTPipeline.PlaceMbistPipeline(1,
+    s"${parentName}_mbistMetaPipe",
+    p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus
+  )
 
   val tag_wen = io.tag_w.valid
   val dir_wen = io.dir_w.valid

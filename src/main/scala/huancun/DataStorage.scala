@@ -93,11 +93,11 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
   } else {
     null
   }
-  val mbistPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${parentName}_mbistPipe")))
-  } else {
-    None
-  }
+
+  val mbistPipeline = MBISTPipeline.PlaceMbistPipeline(2,
+    s"${parentName}_mbistPipe",
+    p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus
+  )
 
   val stackRdy = if (cacheParams.sramClkDivBy2) {
     RegInit(VecInit(Seq.fill(nrStacks) {

@@ -351,9 +351,9 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
         })) }
         val mbistSlicePipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
           if(cacheParams.level == 2) {
-            Some(Module(new MBISTPipeline(3, s"MBIST_L2S${i}")))
+            MBISTPipeline.PlaceMbistPipeline(3, s"MBIST_L2S${i}", true)
           } else {
-            Some(Module(new MBISTPipeline(Int.MaxValue, s"MBIST_L3S${i}")))
+            MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L3S${i}", true)
           }
         } else {
           None
@@ -443,30 +443,29 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     val hasShareBus = cacheParams.hasMbist && cacheParams.hasShareBus
     /*****************************************l2 Mbist Share Bus***************************************/
     val l2TopPipeLine = if(hasShareBus && cacheParams.level == 2) {
-      Some(Module(new MBISTPipeline(Int.MaxValue, s"MBIST_L2")))
+      MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L2", true)
     } else {
       None
     }
     val l2pipePorts = if(hasShareBus && cacheParams.level == 2) {
-      Some(IO(l2TopPipeLine.get.io.mbist.get.cloneType))
+      Some(IO(l2TopPipeLine.get.mbist.cloneType))
     } else {
       None
     }
     if(hasShareBus && cacheParams.level == 2){
-      l2pipePorts.get <> l2TopPipeLine.get.io.mbist.get
+      l2pipePorts.get <> l2TopPipeLine.get.mbist
     }
     /*****************************************l3 Mbist Share Bus***************************************/
     val l3Intfs = if(hasShareBus && cacheParams.level == 3) {
       Some(mbistPipes.zipWithIndex.map( {case (pip,idx) => {
-        val params = pip.get.bd.params
-        val node = pip.get.node
+        val params = pip.get.nodeParams
         val intf = Module(new MBISTInterface(
           params = Seq(params),
-          ids = Seq(node.children.flatMap(_.array_id)),
+          ids = Seq(pip.get.childrenIds),
           name = s"MBIST_intf_l3_slice${idx}",
           pipelineNum = 1
         ))
-        intf.toPipeline.head <> pip.get.io.mbist.get
+        intf.toPipeline.head <> pip.get.mbist
         intf.mbist := DontCare
         pip.get.genCSV(intf.info, s"MBIST_L3S${idx}")
         dontTouch(intf.mbist)
@@ -538,7 +537,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
         llcRecvQ.io.enq.bits.addr       := pf_l3recv_node.get.in.head._1.addr      
         llcRecvQ.io.enq.bits.addr_valid := pf_l3recv_node.get.in.head._1.addr_valid
         llcRecvQ.io.enq.bits.source     := pf_l3recv_node.get.in.head._1.source
-        slices.zipWithIndex.map{
+        slices.zipWithIndex.foreach{
           case(s: Slice, i) =>
             s.io.llcRecv.get.valid := llcRecvQ.io.deq.valid && bank_eq(s.parseFullAddress(llcRecvQ.io.deq.bits.addr)._2, i, bankBits)
             s.io.llcRecv.get.bits  := llcRecvQ.io.deq.bits
