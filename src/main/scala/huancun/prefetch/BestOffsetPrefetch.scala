@@ -246,7 +246,7 @@ class BestOffsetPrefetch(parentName:String = "Unknown")(implicit p: Parameters) 
   val rrTable = Module(new RecentRequestTable(parentName = parentName + "rrTable_"))
   val scoreTable = Module(new OffsetScoreTable)
   val mbistBOPPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(3,s"${parentName}_mbistBOPPipe")))
+    MBISTPipeline.PlaceMbistPipeline(3, s"${parentName}_mbistBOPPipe")
   } else {
     None
   }

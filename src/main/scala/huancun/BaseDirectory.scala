@@ -153,7 +153,7 @@ class SubDirectory[T <: Data](
   }
 
   val mbistTagEccPipeline = if(p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistTagEccPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistTagEccPipe")
   } else {
     None
   }
@@ -199,7 +199,7 @@ class SubDirectory[T <: Data](
     repl_state_hold
   }
   val mbistReplPipeline = if(p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus && replacement != "random") {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistReplPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistReplPipe")
   } else {
     None
   }
