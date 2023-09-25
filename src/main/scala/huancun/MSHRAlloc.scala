@@ -22,7 +22,7 @@ package huancun
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import utils._
+import xs.utils.perf.HasPerfLogging
 import xs.utils.{ParallelOR, ParallelPriorityMux}
 
 class MSHRSelector(implicit p: Parameters) extends HuanCunModule {
@@ -36,7 +36,7 @@ class MSHRSelector(implicit p: Parameters) extends HuanCunModule {
   })
 }
 
-class MSHRAlloc(implicit p: Parameters) extends HuanCunModule {
+class MSHRAlloc(implicit p: Parameters) extends HuanCunModule  with HasPerfLogging{
   val io = IO(new Bundle() {
     // requests
     val a_req = Flipped(DecoupledIO(new MSHRRequest))
@@ -190,8 +190,8 @@ class MSHRAlloc(implicit p: Parameters) extends HuanCunModule {
       }
       val cntEnable =
         !io.status(i).valid && cnt =/= 0.U && cntStart && cnt < 5000.U // Ignore huge cnt during L3 dir reset
-      XSPerfHistogram(cacheParams, "mshr_latency_" + Integer.toString(i, 10), cnt, cntEnable, 0, 300, 10)
-      XSPerfMax(cacheParams, "mshr_latency", cnt, cntEnable)
+      XSPerfHistogram("mshr_latency_" + Integer.toString(i, 10), cnt, cntEnable, 0, 300, 10)
+      XSPerfMax("mshr_latency", cnt, cntEnable)
     }
   }
 
@@ -200,13 +200,13 @@ class MSHRAlloc(implicit p: Parameters) extends HuanCunModule {
       (s.bits.set(block_granularity - 1, 0) === io.a_req.bits.set(block_granularity - 1, 0))
   ))
 
-  XSPerfAccumulate(cacheParams, "nrWorkingABCmshr", PopCount(io.status.init.init.map(_.valid)))
-  XSPerfAccumulate(cacheParams, "nrWorkingBmshr", io.status.take(mshrs+1).last.valid)
-  XSPerfAccumulate(cacheParams, "nrWorkingCmshr", io.status.last.valid)
-  XSPerfAccumulate(cacheParams, "conflictA", io.a_req.valid && conflict_a)
-  XSPerfAccumulate(cacheParams, "conflictByPrefetch", io.a_req.valid && Cat(pretch_block_vec).orR)
-  XSPerfAccumulate(cacheParams, "conflictB", io.b_req.valid && conflict_b)
-  XSPerfAccumulate(cacheParams, "conflictC", io.c_req.valid && conflict_c)
+  XSPerfAccumulate("nrWorkingABCmshr", PopCount(io.status.init.init.map(_.valid)))
+  XSPerfAccumulate("nrWorkingBmshr", io.status.take(mshrs+1).last.valid)
+  XSPerfAccumulate("nrWorkingCmshr", io.status.last.valid)
+  XSPerfAccumulate("conflictA", io.a_req.valid && conflict_a)
+  XSPerfAccumulate("conflictByPrefetch", io.a_req.valid && Cat(pretch_block_vec).orR)
+  XSPerfAccumulate("conflictB", io.b_req.valid && conflict_b)
+  XSPerfAccumulate("conflictC", io.c_req.valid && conflict_c)
   //val perfinfo = IO(new Bundle(){
   //  val perfEvents = Output(new PerfEventsBundle(numPCntHcMSHR))
   //})

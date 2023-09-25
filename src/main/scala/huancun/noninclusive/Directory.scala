@@ -9,6 +9,7 @@ import huancun._
 import huancun.debug.{DirectoryLogger, TypeId}
 import xs.utils.mbist.MBISTPipeline
 import huancun.utils._
+import xs.utils.perf.HasPerfLogging
 import xs.utils.{GTimer, ParallelPriorityMux}
 
 trait HasClientInfo { this: HasHuanCunParameters =>
@@ -120,7 +121,7 @@ class DirectoryIO(implicit p: Parameters) extends BaseDirectoryIO[DirResult, Sel
 
 class Directory(parentName: String = "Unknown")(implicit p: Parameters)
     extends BaseDirectory[DirResult, SelfDirWrite, SelfTagWrite]
-    with HasClientInfo {
+    with HasClientInfo with HasPerfLogging {
   val io = IO(new DirectoryIO())
 
   val stamp = GTimer()
@@ -330,18 +331,18 @@ class Directory(parentName: String = "Unknown")(implicit p: Parameters)
 
   assert(dirReadPorts == 1)
   val req_r = RegEnable(req.bits, req.fire)
-  XSPerfAccumulate(cacheParams, "selfdir_A_req", req_r.replacerInfo.channel(0) && resp.valid)
-  XSPerfAccumulate(cacheParams, "selfdir_A_hit", req_r.replacerInfo.channel(0) && resp.valid && resp.bits.self.hit)
-  XSPerfAccumulate(cacheParams, "selfdir_B_req", req_r.replacerInfo.channel(1) && resp.valid)
-  XSPerfAccumulate(cacheParams, "selfdir_B_hit", req_r.replacerInfo.channel(1) && resp.valid && resp.bits.self.hit)
-  XSPerfAccumulate(cacheParams, "selfdir_C_req", req_r.replacerInfo.channel(2) && resp.valid)
-  XSPerfAccumulate(cacheParams, "selfdir_C_hit", req_r.replacerInfo.channel(2) && resp.valid && resp.bits.self.hit)
+  XSPerfAccumulate("selfdir_A_req", req_r.replacerInfo.channel(0) && resp.valid)
+  XSPerfAccumulate("selfdir_A_hit", req_r.replacerInfo.channel(0) && resp.valid && resp.bits.self.hit)
+  XSPerfAccumulate("selfdir_B_req", req_r.replacerInfo.channel(1) && resp.valid)
+  XSPerfAccumulate("selfdir_B_hit", req_r.replacerInfo.channel(1) && resp.valid && resp.bits.self.hit)
+  XSPerfAccumulate("selfdir_C_req", req_r.replacerInfo.channel(2) && resp.valid)
+  XSPerfAccumulate("selfdir_C_hit", req_r.replacerInfo.channel(2) && resp.valid && resp.bits.self.hit)
 
-  XSPerfAccumulate(cacheParams, "selfdir_dirty", resp.valid && resp.bits.self.dirty)
-  XSPerfAccumulate(cacheParams, "selfdir_TIP", resp.valid && resp.bits.self.state === TIP)
-  XSPerfAccumulate(cacheParams, "selfdir_BRANCH", resp.valid && resp.bits.self.state === BRANCH)
-  XSPerfAccumulate(cacheParams, "selfdir_TRUNK", resp.valid && resp.bits.self.state === TRUNK)
-  XSPerfAccumulate(cacheParams, "selfdir_INVALID", resp.valid && resp.bits.self.state === INVALID)
+  XSPerfAccumulate("selfdir_dirty", resp.valid && resp.bits.self.dirty)
+  XSPerfAccumulate("selfdir_TIP", resp.valid && resp.bits.self.state === TIP)
+  XSPerfAccumulate("selfdir_BRANCH", resp.valid && resp.bits.self.state === BRANCH)
+  XSPerfAccumulate("selfdir_TRUNK", resp.valid && resp.bits.self.state === TRUNK)
+  XSPerfAccumulate("selfdir_INVALID", resp.valid && resp.bits.self.state === INVALID)
   //val perfinfo = IO(new Bundle(){
   //  val perfEvents = Output(new PerfEventsBundle(numPCntHcDir))
   //})

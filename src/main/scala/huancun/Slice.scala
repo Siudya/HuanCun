@@ -25,10 +25,10 @@ import chisel3.util._
 import freechips.rocketchip.tilelink._
 import huancun.noninclusive.{ProbeHelper, SliceCtrl}
 import huancun.prefetch._
+import xs.utils.perf.HasPerfLogging
 import xs.utils.{FastArbiter, LatchFastArbiter, Pipeline}
-import huancun.utils.XSPerfAccumulate
 
-class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends HuanCunModule {
+class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends HuanCunModule with HasPerfLogging {
   val io = IO(new Bundle {
     val in = Flipped(TLBundle(edgeIn.bundle))
     val out = TLBundle(edgeOut.bundle)
@@ -155,7 +155,7 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
         alloc_A_arb.io.in(0) <> a_req
         alloc_A_arb.io.in(1) <> sppLlcReqToMSHRReq(io.llcRecv.get)
         a_req_buffer.io.in <> alloc_A_arb.io.out
-        XSPerfAccumulate(cacheParams, "L3_slice_receiver_hit", alloc_A_arb.io.in(1).valid && (alloc_A_arb.io.in(1).bits.opcode === TLMessages.Hint))
+        XSPerfAccumulate("L3_slice_receiver_hit", alloc_A_arb.io.in(1).valid && (alloc_A_arb.io.in(1).bits.opcode === TLMessages.Hint))
       } else {
         a_req_buffer.io.in <> a_req
       }

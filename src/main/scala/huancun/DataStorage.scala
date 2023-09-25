@@ -25,9 +25,9 @@ import chisel3.util._
 import xs.utils.mbist.MBISTPipeline
 import xs.utils._
 import xs.utils.sram.SRAMWrapper
-import huancun.utils._
+import xs.utils.perf.HasPerfLogging
 
-class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends HuanCunModule {
+class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends HuanCunModule with HasPerfLogging{
   val io = IO(new Bundle() {
     val sourceC_raddr = Flipped(DecoupledIO(new DSAddress))
     val sourceC_rdata = Output(new DSData)
@@ -281,7 +281,7 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
   val debug_stack_used = PopCount(bank_en.grouped(stackSize).toList.map(seq => Cat(seq).orR))
 
   for (i <- 1 to nrStacks) {
-    XSPerfAccumulate(cacheParams, s"DS_${i}_stacks_used", debug_stack_used === i.U)
+    XSPerfAccumulate(s"DS_${i}_stacks_used", debug_stack_used === i.U)
   }
 
 }

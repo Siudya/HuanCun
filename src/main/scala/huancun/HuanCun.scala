@@ -30,9 +30,9 @@ import huancun.prefetch._
 import xs.utils.mbist.{MBISTInterface, MBISTPipeline}
 import xs.utils.sram.SRAMTemplate
 import xs.utils._
-import huancun.utils._
 import huancun.noninclusive.MSHR
 import chisel3.util.experimental.BoringUtils
+import xs.utils.perf.HasPerfLogging
 
 trait HasHuanCunParameters {
   val p: Parameters
@@ -248,7 +248,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
   }
 
   lazy val module = new Impl
-  class Impl extends LazyModuleImp(this) {
+  class Impl extends LazyModuleImp(this) with HasPerfLogging {
     val banks = node.in.size
     val io = IO(new Bundle {
       val perfEvents = Vec(banks, Vec(numPCntHc,Output(UInt(6.W))))
@@ -504,7 +504,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
       val stall_l2_load_miss = stall_l1d_load_miss && stall_l2_miss
       BoringUtils.addSource(stall_l2_load_miss, "stall_l2_load_miss")
       val l2_loads_bound = stall_l1d_load_miss && !stall_l2_miss
-      XSPerfAccumulate(cacheParams, "l2_loads_bound", l2_loads_bound)
+      XSPerfAccumulate("l2_loads_bound", l2_loads_bound)
     }
     if (cacheParams.enableTopDown && cacheParams.name == "L3") {
       val stall_l2_load_miss = WireDefault(0.B)
@@ -526,8 +526,8 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
           ).reduce(_ || _)).reduce(_ || _)).reduce(_ || _)
       val stall_l3_load_miss = stall_l2_load_miss && stall_l3_miss
       val l3_loads_bound = stall_l2_load_miss && !stall_l3_miss
-      XSPerfAccumulate(cacheParams, "l3_loads_bound", l3_loads_bound)
-      XSPerfAccumulate(cacheParams, "ddr_loads_bound", stall_l3_load_miss)
+      XSPerfAccumulate("l3_loads_bound", l3_loads_bound)
+      XSPerfAccumulate("ddr_loads_bound", stall_l3_load_miss)
     }
     if(cacheParams.level == 3){
       prefetchLlcRecvOpt.map{_ =>
@@ -543,9 +543,9 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
             s.io.llcRecv.get.bits  := llcRecvQ.io.deq.bits
         }
         llcRecvQ.io.deq.ready := VecInit(slices.map((slice: Slice) => slice.io.llcRecv.get.ready)).asUInt.orR
-        XSPerfAccumulate(cacheParams, "L3_receiver_hit", pf_l3recv_node.get.in.head._1.addr_valid)
-        XSPerfAccumulate(cacheParams, "L3_Slice_received_pf", VecInit(slices.map((slice: Slice) => slice.io.llcRecv.get.valid)).asUInt.orR)
-        XSPerfAccumulate(cacheParams, "L3_Slice_can_receive_pf", VecInit(slices.map((slice: Slice) => slice.io.llcRecv.get.ready)).asUInt.orR)
+        XSPerfAccumulate("L3_receiver_hit", pf_l3recv_node.get.in.head._1.addr_valid)
+        XSPerfAccumulate("L3_Slice_received_pf", VecInit(slices.map((slice: Slice) => slice.io.llcRecv.get.valid)).asUInt.orR)
+        XSPerfAccumulate("L3_Slice_can_receive_pf", VecInit(slices.map((slice: Slice) => slice.io.llcRecv.get.ready)).asUInt.orR)
       }
 
     }

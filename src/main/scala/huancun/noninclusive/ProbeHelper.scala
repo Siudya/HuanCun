@@ -5,10 +5,10 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink.{TLMessages, TLPermissions}
 import huancun.{HuanCunModule, MSHRRequest, MetaData}
-import huancun.utils.XSPerfAccumulate
+import xs.utils.perf.HasPerfLogging
 
 class ProbeHelper(entries: Int = 5, enqDelay: Int = 1)(implicit p: Parameters)
-  extends HuanCunModule with HasClientInfo
+  extends HuanCunModule with HasClientInfo with HasPerfLogging
 {
   val io = IO(new Bundle() {
     val dirResult = Flipped(Valid(new DirResult()))
@@ -62,7 +62,7 @@ class ProbeHelper(entries: Int = 5, enqDelay: Int = 1)(implicit p: Parameters)
 
   io.probe <> queue.io.deq
 
-  XSPerfAccumulate(cacheParams, "client_dir_conflict", queue.io.enq.fire)
+  XSPerfAccumulate("client_dir_conflict", queue.io.enq.fire)
   //val perfinfo = IO(new Bundle(){
   //  val perfEvents = Output(new PerfEventsBundle(numPCntHcReqb))
   //})
