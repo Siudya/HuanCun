@@ -3,17 +3,15 @@ package huancun.utils
 import chisel3._
 import chisel3.util.experimental.BoringUtils
 import huancun.HCCacheParameters
-import xs.utils.GTimer
+import xs.utils.{GTimer, BroadCastingUtils}
 
 object XSPerfAccumulate {
   def apply(params: HCCacheParameters, perfName: String, perfCnt: UInt) = {
     if (params.enablePerf) {
-      val logTimestamp = WireInit(0.U(64.W))
       val perfClean = WireInit(false.B)
       val perfDump = WireInit(false.B)
-      BoringUtils.addSink(logTimestamp, "logTimestamp")
-      BoringUtils.addSink(perfClean, "XSPERF_CLEAN")
-      BoringUtils.addSink(perfDump, "XSPERF_DUMP")
+      BroadCastingUtils.AddBroadCastSink("XSPERF_CLEAN", perfClean)
+      BroadCastingUtils.AddBroadCastSink("XSPERF_DUMP", perfDump)
 
       val counter = RegInit(0.U(64.W))
       val next_counter = counter + perfCnt
@@ -39,12 +37,10 @@ object XSPerfHistogram {
     step:     Int
   ) = {
     if (params.enablePerf) {
-      val logTimestamp = WireInit(0.U(64.W))
       val perfClean = WireInit(false.B)
       val perfDump = WireInit(false.B)
-      BoringUtils.addSink(logTimestamp, "logTimestamp")
-      BoringUtils.addSink(perfClean, "XSPERF_CLEAN")
-      BoringUtils.addSink(perfDump, "XSPERF_DUMP")
+      BroadCastingUtils.AddBroadCastSink("XSPERF_CLEAN", perfClean)
+      BroadCastingUtils.AddBroadCastSink("XSPERF_DUMP", perfDump)
 
       // drop each perfCnt value into a bin
       val nBins = (stop - start) / step
@@ -81,12 +77,10 @@ object XSPerfHistogram {
 object XSPerfMax {
   def apply(params: HCCacheParameters, perfName: String, perfCnt: UInt, enable: Bool) = {
     if (params.enablePerf) {
-      val logTimestamp = WireInit(0.U(64.W))
       val perfClean = WireInit(false.B)
       val perfDump = WireInit(false.B)
-      BoringUtils.addSink(logTimestamp, "logTimestamp")
-      BoringUtils.addSink(perfClean, "XSPERF_CLEAN")
-      BoringUtils.addSink(perfDump, "XSPERF_DUMP")
+      BroadCastingUtils.AddBroadCastSink("XSPERF_CLEAN", perfClean)
+      BroadCastingUtils.AddBroadCastSink("XSPERF_DUMP", perfDump)
 
       val max = RegInit(0.U(64.W))
       val next_max = Mux(enable && (perfCnt > max), perfCnt, max)
