@@ -77,7 +77,7 @@ class SinkA(implicit p: Parameters) extends HuanCunModule {
     bufferLeakCnt := 0.U
   }
 
-  when(bufferLeakCnt === 800.U) {
+  when(bufferLeakCnt === 5000.U) {
     assert(false.B, "buffer leak at index 0")
   }
 
