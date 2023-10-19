@@ -313,9 +313,9 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     }
     pf_recv_node match {
       case Some(x) =>
-        prefetcher.get.io.recv_addr.valid := x.in.head._1.addr_valid
-        prefetcher.get.io.recv_addr.bits := x.in.head._1.addr
-        prefetcher.get.io_l2_pf_en := x.in.head._1.l2_pf_en
+        prefetcher.get.io.recv_addr.valid := RegNext(x.in.head._1.addr_valid,false.B)
+        prefetcher.get.io.recv_addr.bits := RegEnable(x.in.head._1.addr,x.in.head._1.addr_valid)
+        prefetcher.get.io_l2_pf_en := RegEnable(x.in.head._1.l2_pf_en,x.in.head._1.addr_valid)
       case None =>
         prefetcher.foreach(_.io.recv_addr := DontCare)
         prefetcher.foreach(_.io_l2_pf_en := DontCare)
@@ -366,8 +366,9 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
         if(cacheParams.level == 2) {
           slice.io.prefetch.zip(prefetcher).foreach {
             case (s, p) =>
-              s.req.valid := p.io.req.valid && bank_eq(p.io.req.bits.set, i, bankBits)
-              s.req.bits := p.io.req.bits
+              val pf_req_valid = p.io.req.valid && bank_eq(p.io.req.bits.set, i, bankBits)
+              s.req.valid := RegNext(pf_req_valid,false.B)
+              s.req.bits := RegEnable(p.io.req.bits,pf_req_valid)
               prefetchReqsReady(i) := s.req.ready && bank_eq(p.io.req.bits.set, i, bankBits)
               val train = Pipeline(s.train)
               val resp = Pipeline(s.resp)
