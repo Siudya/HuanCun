@@ -350,11 +350,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
           case BankBitsKey => bankBits
         })) }
         val mbistSlicePipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-          if(cacheParams.level == 2) {
-            MBISTPipeline.PlaceMbistPipeline(3, s"MBIST_L2S${i}", true)
-          } else {
-            MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L3S${i}", true)
-          }
+          MBISTPipeline.PlaceMbistPipeline(3, s"MBIST_L3S${i}", true)
         } else {
           None
         }
@@ -456,18 +452,23 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
       l2pipePorts.get <> l2TopPipeLine.get.mbist
     }
     /*****************************************l3 Mbist Share Bus***************************************/
-    val l3Intfs = if(hasShareBus && cacheParams.level == 3) {
-      Some(mbistPipes.zipWithIndex.map( {case (pip,idx) => {
-        val params = pip.get.nodeParams
+    val l3TopPipeLine = if (hasShareBus && cacheParams.level == 3) {
+      MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L3", true)
+    } else {
+      None
+    }
+    val l3Intf = if(hasShareBus && cacheParams.level == 3) {
+      Some(l3TopPipeLine.zipWithIndex.map( {case (pip,idx) => {
+        val params = pip.nodeParams
         val intf = Module(new MBISTInterface(
           params = Seq(params),
-          ids = Seq(pip.get.childrenIds),
-          name = s"MBIST_intf_l3_slice${idx}",
+          ids = Seq(pip.childrenIds),
+          name = s"MBIST_intf_l3",
           pipelineNum = 1
         ))
-        intf.toPipeline.head <> pip.get.mbist
+        intf.toPipeline.head <> pip.mbist
         intf.mbist := DontCare
-        pip.get.genCSV(intf.info, s"MBIST_L3S${idx}")
+        pip.genCSV(intf.info, s"MBIST_L3")
         dontTouch(intf.mbist)
         //TODO: add mbist controller connections here
         intf
@@ -530,11 +531,11 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
       XSPerfAccumulate("ddr_loads_bound", stall_l3_load_miss)
     }
     if(cacheParams.level == 3){
-      prefetchLlcRecvOpt.map{_ =>
+      prefetchLlcRecvOpt.foreach{ _ =>
         val llcRecvQ = Module(new Queue(new LlcPrefetchRecv, entries=16, pipe=true, flow=true))
         llcRecvQ.io.enq.valid := pf_l3recv_node.get.in.head._1.addr_valid
-        llcRecvQ.io.enq.bits.needT      := pf_l3recv_node.get.in.head._1.needT     
-        llcRecvQ.io.enq.bits.addr       := pf_l3recv_node.get.in.head._1.addr      
+        llcRecvQ.io.enq.bits.needT      := pf_l3recv_node.get.in.head._1.needT
+        llcRecvQ.io.enq.bits.addr       := pf_l3recv_node.get.in.head._1.addr
         llcRecvQ.io.enq.bits.addr_valid := pf_l3recv_node.get.in.head._1.addr_valid
         llcRecvQ.io.enq.bits.source     := pf_l3recv_node.get.in.head._1.source
         slices.zipWithIndex.foreach{
