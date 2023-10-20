@@ -45,7 +45,7 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
   /* Define some internal parameters */
   val nrStacks = 2
   val stackBits = log2Ceil(nrStacks)
-  val bankBytes = 8
+  val bankBytes = cacheParams.dataBytes
   val rowBytes = nrStacks * beatBytes
   val nrRows = sizeBytes / rowBytes
   val nrBanks = rowBytes / bankBytes

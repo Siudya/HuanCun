@@ -96,6 +96,7 @@ case class HCCacheParameters
   alwaysReleaseData: Boolean = false,
   tagECC:            Option[String] = None,
   dataECC:           Option[String] = None,
+  dataBytes: Int = 16,
   echoField: Seq[BundleFieldBase] = Nil,
   reqField: Seq[BundleFieldBase] = Nil, // master
   respKey: Seq[BundleKeyBase] = Nil,
