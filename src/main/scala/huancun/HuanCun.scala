@@ -443,13 +443,25 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     } else {
       None
     }
-    val l2pipePorts = if(hasShareBus && cacheParams.level == 2) {
-      Some(IO(l2TopPipeLine.get.mbist.cloneType))
+    val l2Intf = if (hasShareBus && cacheParams.level == 2) {
+      Some(l2TopPipeLine.zipWithIndex.map({ case (pip, idx) => {
+        val params = pip.nodeParams
+        val intf = Module(new MBISTInterface(
+          params = Seq(params),
+          ids = Seq(pip.childrenIds),
+          name = s"MBIST_intf_l2",
+          pipelineNum = 1
+        ))
+        intf.toPipeline.head <> pip.mbist
+        intf.mbist := DontCare
+        pip.genCSV(intf.info, s"MBIST_L2")
+        dontTouch(intf.mbist)
+        //TODO: add mbist controller connections here
+        intf
+      }
+      }))
     } else {
       None
-    }
-    if(hasShareBus && cacheParams.level == 2){
-      l2pipePorts.get <> l2TopPipeLine.get.mbist
     }
     /*****************************************l3 Mbist Share Bus***************************************/
     val l3TopPipeLine = if (hasShareBus && cacheParams.level == 3) {
