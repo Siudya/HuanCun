@@ -314,12 +314,13 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     }
     pf_recv_node match {
       case Some(x) =>
-        prefetcher.get.io.recv_addr.valid := RegNext(x.in.head._1.addr_valid,false.B)
-        prefetcher.get.io.recv_addr.bits := RegEnable(x.in.head._1.addr,x.in.head._1.addr_valid)
-        prefetcher.get.io_l2_pf_en := RegEnable(x.in.head._1.l2_pf_en,x.in.head._1.addr_valid)
+        prefetcher.get.io.recv_addr.valid := RegNext(x.in.head._1.addr_valid, false.B)
+        prefetcher.get.io.recv_addr.bits := RegEnable(x.in.head._1.addr, x.in.head._1.addr_valid)
+        prefetcher.get.io_l2_pf_en := RegNext(x.in.head._1.l2_pf_en, false.B)
       case None =>
-        prefetcher.foreach(_.io.recv_addr := DontCare)
-        prefetcher.foreach(_.io_l2_pf_en := DontCare)
+        prefetcher.foreach(_.io.recv_addr.valid := false.B)
+        prefetcher.foreach(_.io.recv_addr.bits := DontCare)
+        prefetcher.foreach(_.io_l2_pf_en := false.B)
     }
 
     def bank_eq(set: UInt, bankId: Int, bankBits: Int): Bool = {
