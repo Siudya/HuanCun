@@ -29,6 +29,7 @@ import freechips.rocketchip.util.{BundleFieldBase, UIntToOH1}
 import huancun.prefetch._
 import xs.utils.mbist.{MBISTInterface, MBISTPipeline}
 import xs.utils.sram.SRAMTemplate
+import xs.utils.RegNextN
 import xs.utils._
 import huancun.noninclusive.MSHR
 import chisel3.util.experimental.BoringUtils
@@ -533,7 +534,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     }
     if(cacheParams.level == 3){
       prefetchLlcRecvOpt.foreach{ _ =>
-        val llcRecvQ = Module(new Queue(new LlcPrefetchRecv, entries=16, pipe=true, flow=true))
+        val llcRecvQ = Module(new Queue(new LlcPrefetchRecv, entries=16, pipe=true, flow=false))
         llcRecvQ.io.enq.valid := pf_l3recv_node.get.in.head._1.addr_valid
         llcRecvQ.io.enq.bits.needT      := pf_l3recv_node.get.in.head._1.needT
         llcRecvQ.io.enq.bits.addr       := pf_l3recv_node.get.in.head._1.addr
@@ -541,8 +542,9 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
         llcRecvQ.io.enq.bits.source     := pf_l3recv_node.get.in.head._1.source
         slices.zipWithIndex.foreach{
           case(s: Slice, i) =>
-            s.io.llcRecv.get.valid := llcRecvQ.io.deq.valid && bank_eq(s.parseFullAddress(llcRecvQ.io.deq.bits.addr)._2, i, bankBits)
-            s.io.llcRecv.get.bits  := llcRecvQ.io.deq.bits
+            val slice_llcRecv_valid = llcRecvQ.io.deq.valid && bank_eq(s.parseFullAddress(llcRecvQ.io.deq.bits.addr)._2, i, bankBits)
+            s.io.llcRecv.get.valid := RegNextN(slice_llcRecv_valid,1,Some(false.B))
+            s.io.llcRecv.get.bits  := RegEnable(llcRecvQ.io.deq.bits,slice_llcRecv_valid)
         }
         llcRecvQ.io.deq.ready := VecInit(slices.map((slice: Slice) => slice.io.llcRecv.get.ready)).asUInt.orR
         XSPerfAccumulate("L3_receiver_hit", pf_l3recv_node.get.in.head._1.addr_valid)
