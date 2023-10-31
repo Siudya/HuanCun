@@ -109,7 +109,8 @@ case class HCCacheParameters
   hasMbist: Boolean = false,
   hasShareBus: Boolean = false,
   innerBuf: TLBufferParams = TLBufferParams(
-    a = BufferParams.pipe
+    a = BufferParams.pipe,
+    c = BufferParams.pipe
   ),
   outerBuf: TLBufferParams = TLBufferParams(
     a = BufferParams.default,
