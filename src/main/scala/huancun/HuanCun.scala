@@ -29,6 +29,7 @@ import freechips.rocketchip.util.{BundleFieldBase, UIntToOH1}
 import huancun.prefetch._
 import xs.utils.mbist.{MBISTInterface, MBISTPipeline}
 import xs.utils.sram.SRAMTemplate
+import xs.utils.RegNextN
 import xs.utils._
 import huancun.noninclusive.MSHR
 import chisel3.util.experimental.BoringUtils
@@ -313,9 +314,9 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     }
     pf_recv_node match {
       case Some(x) =>
-        prefetcher.get.io.recv_addr.valid := x.in.head._1.addr_valid
-        prefetcher.get.io.recv_addr.bits := x.in.head._1.addr
-        prefetcher.get.io_l2_pf_en := x.in.head._1.l2_pf_en
+        prefetcher.get.io.recv_addr.valid := RegNext(x.in.head._1.addr_valid,false.B)
+        prefetcher.get.io.recv_addr.bits := RegEnable(x.in.head._1.addr,x.in.head._1.addr_valid)
+        prefetcher.get.io_l2_pf_en := RegEnable(x.in.head._1.l2_pf_en,x.in.head._1.addr_valid)
       case None =>
         prefetcher.foreach(_.io.recv_addr := DontCare)
         prefetcher.foreach(_.io_l2_pf_en := DontCare)
@@ -362,8 +363,9 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
         if(cacheParams.level == 2) {
           slice.io.prefetch.zip(prefetcher).foreach {
             case (s, p) =>
-              s.req.valid := p.io.req.valid && bank_eq(p.io.req.bits.set, i, bankBits)
-              s.req.bits := p.io.req.bits
+              val pf_req_valid = p.io.req.valid && bank_eq(p.io.req.bits.set, i, bankBits)
+              s.req.valid := RegNext(pf_req_valid,false.B)
+              s.req.bits := RegEnable(p.io.req.bits,pf_req_valid)
               prefetchReqsReady(i) := s.req.ready && bank_eq(p.io.req.bits.set, i, bankBits)
               val train = Pipeline(s.train)
               val resp = Pipeline(s.resp)
@@ -544,7 +546,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     }
     if(cacheParams.level == 3){
       prefetchLlcRecvOpt.foreach{ _ =>
-        val llcRecvQ = Module(new Queue(new LlcPrefetchRecv, entries=16, pipe=true, flow=true))
+        val llcRecvQ = Module(new Queue(new LlcPrefetchRecv, entries=16, pipe=true, flow=false))
         llcRecvQ.io.enq.valid := pf_l3recv_node.get.in.head._1.addr_valid
         llcRecvQ.io.enq.bits.needT      := pf_l3recv_node.get.in.head._1.needT
         llcRecvQ.io.enq.bits.addr       := pf_l3recv_node.get.in.head._1.addr
@@ -552,8 +554,9 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
         llcRecvQ.io.enq.bits.source     := pf_l3recv_node.get.in.head._1.source
         slices.zipWithIndex.foreach{
           case(s: Slice, i) =>
-            s.io.llcRecv.get.valid := llcRecvQ.io.deq.valid && bank_eq(s.parseFullAddress(llcRecvQ.io.deq.bits.addr)._2, i, bankBits)
-            s.io.llcRecv.get.bits  := llcRecvQ.io.deq.bits
+            val slice_llcRecv_valid = llcRecvQ.io.deq.valid && bank_eq(s.parseFullAddress(llcRecvQ.io.deq.bits.addr)._2, i, bankBits)
+            s.io.llcRecv.get.valid := RegNextN(slice_llcRecv_valid,1,Some(false.B))
+            s.io.llcRecv.get.bits  := RegEnable(llcRecvQ.io.deq.bits,slice_llcRecv_valid)
         }
         llcRecvQ.io.deq.ready := VecInit(slices.map((slice: Slice) => slice.io.llcRecv.get.ready)).asUInt.orR
         XSPerfAccumulate("L3_receiver_hit", pf_l3recv_node.get.in.head._1.addr_valid)
