@@ -22,9 +22,9 @@ package huancun
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.{MBIST, MBISTPipeline, RAM2MBIST, RAM2MBISTParams}
 import xs.utils._
-import xs.utils.sram.SRAMWrapper
+import xs.utils.sram.{SRAMTemplate, SRAMWrapper}
 import xs.utils.perf.HasPerfLogging
 
 class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends HuanCunModule with HasPerfLogging{
@@ -72,11 +72,42 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
         n = cacheParams.sramDepthDiv,
         clk_div_by_2 = cacheParams.sramClkDivBy2,
         hasMbist = p(HCCacheParamsKey).hasMbist,
-        hasShareBus = p(HCCacheParamsKey).hasShareBus,
+        hasShareBus = false,
         parentName = parentName + s"bankedData${idx}_"
       )
     )
   }
+  private val dataArrayId = SRAMTemplate.getDomainID()
+  private val dataVname = bankedData.head.banks.head.sramName
+  private val dataFoundry = bankedData.head.banks.head.foundry
+  private val dataSramInst = bankedData.head.banks.head.sramInst
+  private val dataBankRange = s"[${log2Ceil(nrRows * nrBanks) - 1}:${log2Ceil(nrRows / cacheParams.sramDepthDiv)}]"
+  private val dataMbistParam = RAM2MBISTParams(
+    nrRows * nrBanks, bankBytes * 8, 0, true, dataVname, parentName + "dataArray_",
+    1, dataArrayId, false, dataFoundry, dataSramInst, sramLatency - 3, dataBankRange
+  )
+  private val dataMbistBundle = Wire(new RAM2MBIST(dataMbistParam))
+  dontTouch(dataMbistBundle)
+  dataMbistBundle := 0.U.asTypeOf(dataMbistBundle)
+  if(p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus){
+    MBIST.addRamNode(dataMbistBundle, "dataStorage_", Seq(dataArrayId))
+    SRAMTemplate.increaseDomainID(1)
+  }
+
+  private val dataMbistTesting = dataMbistBundle.ack && dataMbistBundle.array === dataArrayId.U
+  private val dataMbistReq = Wire(new BankDataReq)
+  dataMbistReq.wen := dataMbistTesting & dataMbistBundle.we
+  dataMbistReq.widx := dataMbistBundle.addr_rd(log2Ceil(nrRows) - 1, 0)
+  dataMbistReq.wdata := dataMbistBundle.wdata
+  dataMbistReq.ren := dataMbistBundle.re
+  dataMbistReq.ridx := dataMbistBundle.addr_rd(log2Ceil(nrRows) - 1, 0)
+  private val dataMbistSel = UIntToOH(dataMbistBundle.addr_rd(log2Ceil(nrRows * nrBanks) - 1, log2Ceil(nrRows)))
+
+  val dataMbistPipeline = MBISTPipeline.PlaceMbistPipeline(2,
+    s"${parentName}_data_mbistPipe",
+    p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus
+  )
+
   val dataEccArray = if (eccBits > 0) {
     Seq.tabulate(nrStacks) {
       idx =>
@@ -86,17 +117,41 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
         n = cacheParams.sramDepthDiv,
         clk_div_by_2 = cacheParams.sramClkDivBy2,
         hasMbist = p(HCCacheParamsKey).hasMbist,
-        hasShareBus = p(HCCacheParamsKey).hasShareBus,
+        hasShareBus = false,
         parentName = parentName + s"dataEccArray${idx}_"
       ))
     }
   } else {
     null
   }
+  private val eccArrayId = SRAMTemplate.getDomainID()
+  private val eccVname = if (eccBits > 0) dataEccArray.head.banks.head.sramName else ""
+  private val eccFoundry = if (eccBits > 0) dataEccArray.head.banks.head.foundry else ""
+  private val eccSramInst = if (eccBits > 0) dataEccArray.head.banks.head.sramInst else ""
+  private val eccBankRange = s"[${log2Ceil(nrRows * nrStacks) - 1}:${log2Ceil(nrRows / cacheParams.sramDepthDiv)}]"
+  private val eccMbistParam = RAM2MBISTParams(
+    nrRows * nrStacks, eccBits * stackSize, 0, true, eccVname, parentName + "eccArray_",
+    1, eccArrayId, false, eccFoundry, eccSramInst, sramLatency - 3, eccBankRange
+  )
+  private val eccMbistBundle = Wire(new RAM2MBIST(eccMbistParam))
+  dontTouch(eccMbistBundle)
+  eccMbistBundle := 0.U.asTypeOf(eccMbistBundle)
+  if (p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus && eccBits > 0) {
+    MBIST.addRamNode(eccMbistBundle, "eccStorage_", Seq(eccArrayId))
+    SRAMTemplate.increaseDomainID(1)
+  }
+  private val eccMbistTesting = eccMbistBundle.ack && eccMbistBundle.array === eccArrayId.U
+  private val eccMbistReq = Wire(new EccReq)
+  eccMbistReq.wen := eccMbistTesting & eccMbistBundle.we
+  eccMbistReq.widx := eccMbistBundle.addr_rd(log2Ceil(nrRows) - 1, 0)
+  eccMbistReq.wdata := eccMbistBundle.wdata
+  eccMbistReq.ren := eccMbistBundle.re
+  eccMbistReq.ridx := eccMbistBundle.addr_rd(log2Ceil(nrRows) - 1, 0)
+  private val eccMbistSel = UIntToOH(eccMbistBundle.addr_rd(log2Ceil(nrRows * nrStacks) - 1, log2Ceil(nrRows)))
 
-  val mbistPipeline = MBISTPipeline.PlaceMbistPipeline(2,
-    s"${parentName}_mbistPipe",
-    p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus
+  val eccMbistPipeline = MBISTPipeline.PlaceMbistPipeline(2,
+    s"${parentName}_ecc_mbistPipe",
+    p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus && eccBits > 0
   )
 
   val stackRdy = if (cacheParams.sramClkDivBy2) {
@@ -186,87 +241,145 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
         case (accessed, rdy) => rdy := !accessed && cycleCnt._1(0)
       }
   }
+  private class BankDataReq extends Bundle {
+    val wen = Bool()
+    val widx = UInt((rowBytes * 8).W)
+    val wdata = UInt((8 * bankBytes).W)
+    val ren = Bool()
+    val ridx = UInt((rowBytes * 8).W)
+  }
+  private val bankDataReqSeq = Seq.tabulate(nrBanks)(idx => {
+    val en = reqs.map(_.bankEn(idx)).reduce(_ || _)
+    val mbistEn = dataMbistTesting & dataMbistSel(idx)
+    val selectedReq = PriorityMux(reqs.map(_.bankSel(idx)), reqs)
+    bank_en(idx) := en
+    sel_req(idx) := selectedReq
+    val req = Wire(new BankDataReq)
+    when(mbistEn){
+      req := dataMbistReq
+    }.otherwise {
+      req.wen := en && selectedReq.wen
+      req.widx := selectedReq.index
+      req.wdata := selectedReq.data(idx)
+      req.ren := en && !selectedReq.wen
+      req.ridx := selectedReq.index
+    }
+    req
+  })
 
   for (i <- 0 until nrBanks) {
-    val en = reqs.map(_.bankEn(i)).reduce(_ || _)
-    val selectedReq = PriorityMux(reqs.map(_.bankSel(i)), reqs)
-    bank_en(i) := en
-    sel_req(i) := selectedReq
+    val req = bankDataReqSeq(i)
     if (cacheParams.sramClkDivBy2) {
       // Write
-      val wen = en && selectedReq.wen
+      val wen = req.wen
       val wen_latch = RegNext(wen, false.B)
       bankedData(i).io.w.req.valid := wen_latch
       bankedData(i).io.w.req.bits.apply(
-        setIdx = RegNext(selectedReq.index),
-        data = RegNext(selectedReq.data(i)),
+        setIdx = RegEnable(req.widx, wen),
+        data = RegEnable(req.wdata, wen),
         waymask = 1.U
       )
       // Read
-      val ren = en && !selectedReq.wen
+      val ren = req.ren
       val ren_latch = RegNext(ren, false.B)
       bankedData(i).io.r.req.valid := ren_latch
-      bankedData(i).io.r.req.bits.apply(setIdx = RegNext(selectedReq.index))
+      bankedData(i).io.r.req.bits.apply(setIdx = RegEnable(req.ridx, ren))
     } else {
       // Write
-      val wen = en && selectedReq.wen
+      val wen = req.wen
       bankedData(i).io.w.req.valid := wen
       bankedData(i).io.w.req.bits.apply(
-        setIdx = selectedReq.index,
-        data = selectedReq.data(i),
+        setIdx = req.widx,
+        data = req.wdata,
         waymask = 1.U
       )
       // Read
-      val ren = en && !selectedReq.wen
+      val ren = req.ren
       bankedData(i).io.r.req.valid := ren
-      bankedData(i).io.r.req.bits.apply(setIdx = selectedReq.index)
+      bankedData(i).io.r.req.bits.apply(setIdx = req.ridx)
     }
     // Ecc
     outData(i) := bankedData(i).io.r.resp.data(0)
   }
-
+  private class EccReq extends Bundle {
+    val wen = Bool()
+    val widx = UInt((rowBytes * 8).W)
+    val wdata = UInt(eccBits.W)
+    val ren = Bool()
+    val ridx = UInt((rowBytes * 8).W)
+  }
+  private val eccReqSeq = Seq.tabulate(nrStacks)(idx => {
+    val banks = bankDataReqSeq.grouped(stackSize).toList(idx)
+    val mbistEn = eccMbistTesting & eccMbistSel(idx)
+    val req = Wire(new EccReq)
+    when(mbistEn){
+      req := eccMbistReq
+    }.otherwise {
+      req.wen := banks.head.wen
+      req.widx := banks.head.widx
+      req.wdata := VecInit(banks.map(b => dataCode.encode(b.wdata).head(eccBits))).asUInt
+      req.ren := banks.head.ren
+      req.ridx := banks.head.ridx
+    }
+    req
+  })
   if (eccBits > 0) {
-    for (((banks, ecc), eccArray) <-
-           bankedData.grouped(stackSize).toList
-             .zip(eccData.get)
-             .zip(dataEccArray)
-         ) {
-      eccArray.io.w.req.valid := banks.head.io.w.req.valid
-      eccArray.io.w.req.bits.apply(
-        setIdx = banks.head.io.w.req.bits.setIdx,
-        data = VecInit(banks.map(b =>
-          dataCode.encode(b.io.w.req.bits.data(0)).head(eccBits)
-        )).asUInt,
-        waymask = 1.U
-      )
-      eccArray.io.r.req.valid := banks.head.io.r.req.valid
-      eccArray.io.r.req.bits.apply(setIdx = banks.head.io.r.req.bits.setIdx)
-      ecc := eccArray.io.r.resp.data(0).asTypeOf(Vec(stackSize, UInt(eccBits.W)))
+    for (((req, ecc), eccArray) <- eccReqSeq.zip(eccData.get).zip(dataEccArray)) {
+      if(cacheParams.sramClkDivBy2){
+        eccArray.io.w.req.valid := RegNext(req.wen, false.B)
+        eccArray.io.w.req.bits.apply(
+          setIdx = RegEnable(req.widx, req.wen),
+          data = RegEnable(req.wdata, req.wen),
+          waymask = 1.U
+        )
+        eccArray.io.r.req.valid := RegNext(req.ren, false.B)
+        eccArray.io.r.req.bits.apply(setIdx = RegEnable(req.ridx, req.ren))
+        ecc := eccArray.io.r.resp.data(0).asTypeOf(Vec(stackSize, UInt(eccBits.W)))
+      } else {
+        eccArray.io.w.req.valid := req.wen
+        eccArray.io.w.req.bits.apply(
+          setIdx = req.widx,
+          data = req.wdata,
+          waymask = 1.U
+        )
+        eccArray.io.r.req.valid := req.ren
+        eccArray.io.r.req.bits.apply(setIdx = req.ridx)
+        ecc := eccArray.io.r.resp.data(0).asTypeOf(Vec(stackSize, UInt(eccBits.W)))
+      }
     }
   } else {
   }
 
   val dataSelModules = Array.fill(stackSize) {
-    Module(new DataSel(nrStacks, 2, bankBytes * 8, eccBits))
+    Module(new DataSel(nrStacks, 4, bankBytes * 8, eccBits))
   }
   val data_grps = outData.grouped(stackSize).toList.transpose
   val ecc_grps = eccData.map(_.toList.transpose)
   val d_sel = sourceD_rreq.bankEn.asBools.grouped(stackSize).toList.transpose
   val c_sel = sourceC_req.bankEn.asBools.grouped(stackSize).toList.transpose
+  val mbistDataSel = dataMbistSel.asBools.grouped(stackSize).toList.transpose
   for (i <- 0 until stackSize) {
     val dataSel = dataSelModules(i)
     dataSel.io.in := VecInit(data_grps(i))
-    dataSel.io.ecc_in.map(_ := ecc_grps.get(i))
+    dataSel.io.ecc_in.foreach(_ := ecc_grps.get(i))
     dataSel.io.sel(0) := Cat(d_sel(i).reverse)
     dataSel.io.sel(1) := Cat(c_sel(i).reverse)
+    dataSel.io.sel(2) := Cat(mbistDataSel(i).reverse)
+    dataSel.io.sel(3) := eccMbistSel
     dataSel.io.en(0) := io.sourceD_raddr.fire
     dataSel.io.en(1) := io.sourceC_raddr.fire
+    dataSel.io.en(2) := dataMbistTesting
+    dataSel.io.en(3) := eccMbistTesting
   }
 
   io.sourceD_rdata.data := Cat(dataSelModules.map(_.io.out(0)).reverse)
   io.sourceD_rdata.corrupt := Cat(dataSelModules.map(_.io.err_out(0))).orR
   io.sourceC_rdata.data := Cat(dataSelModules.map(_.io.out(1)).reverse)
   io.sourceC_rdata.corrupt := Cat(dataSelModules.map(_.io.err_out(1))).orR
+  dataMbistBundle.rdata := dataSelModules.map(_.io.out(2)).reduce(_|_)
+  if(eccBits > 0){
+    eccMbistBundle.rdata := Cat(dataSelModules.map(_.io.ecc_out.get(3)).reverse)
+  }
 
   val d_addr_reg = RegNextN(io.sourceD_raddr.bits, sramLatency)
   val c_addr_reg = RegNextN(io.sourceC_raddr.bits, sramLatency)
@@ -295,6 +408,7 @@ class DataSel(inNum: Int, outNum: Int, width: Int, eccBits: Int)(implicit p: Par
     val en = Input(Vec(outNum, Bool()))
     val out = Output(Vec(outNum, UInt(width.W)))
     val err_out = Output(Vec(outNum, Bool()))
+    val ecc_out = if (eccBits > 0) Some(Output(Vec(outNum, UInt(eccBits.W)))) else None
   })
 
   def dataCode: Code = Code.fromString(p(HCCacheParamsKey).dataECC)
@@ -311,10 +425,11 @@ class DataSel(inNum: Int, outNum: Int, width: Int, eccBits: Int)(implicit p: Par
       val err = oeccs.zip(odata).map{
         case (e, d) => dataCode.decode(e ## d).error
       }
-      io.err_out(i) := RegEnable(Mux1H(sel_r, err).orR, false.B, RegNext(en, false.B))
+      val validReg = RegNext(en, false.B)
+      io.ecc_out.get(i) := RegEnable(Mux1H(sel_r, oeccs), validReg)
+      io.err_out(i) := RegEnable(Mux1H(sel_r, err).orR, false.B, validReg)
     } else {
       io.err_out(i) := false.B
     }
   }
-
 }
