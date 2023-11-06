@@ -466,31 +466,6 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     } else {
       None
     }
-    /*****************************************l3 Mbist Share Bus***************************************/
-    val l3TopPipeLine = if (hasShareBus && cacheParams.level == 3) {
-      MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L3", true)
-    } else {
-      None
-    }
-    val l3Intf = if(hasShareBus && cacheParams.level == 3) {
-      Some(l3TopPipeLine.zipWithIndex.map( {case (pip,idx) => {
-        val params = pip.nodeParams
-        val intf = Module(new MBISTInterface(
-          params = Seq(params),
-          ids = Seq(pip.childrenIds),
-          name = s"MBIST_intf_l3",
-          pipelineNum = 1
-        ))
-        intf.toPipeline.head <> pip.mbist
-        intf.mbist := DontCare
-        pip.genCSV(intf.info, s"MBIST_L3")
-        dontTouch(intf.mbist)
-        //TODO: add mbist controller connections here
-        intf
-      }}))
-    } else {
-      None
-    }
     /****************************************Broadcast Signals*******************************************/
     val sigFromSrams = if(cacheParams.hasMbist) Some(SRAMTemplate.genBroadCastBundleTop()) else None
     val dft = if(cacheParams.hasMbist) Some(IO(sigFromSrams.get.cloneType)) else None
