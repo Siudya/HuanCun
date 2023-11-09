@@ -149,6 +149,8 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
   eccMbistReq.ridx := eccMbistBundle.addr_rd(log2Ceil(nrRows) - 1, 0)
   private val eccMbistSel = UIntToOH(eccMbistBundle.addr_rd(log2Ceil(nrRows * nrStacks) - 1, log2Ceil(nrRows)))
 
+  private val mbistTesting = dataMbistTesting | eccMbistTesting
+
   val eccMbistPipeline = MBISTPipeline.PlaceMbistPipeline(2,
     s"${parentName}_ecc_mbistPipe",
     p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus && eccBits > 0
@@ -250,13 +252,13 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
   }
   private val bankDataReqSeq = Seq.tabulate(nrBanks)(idx => {
     val en = reqs.map(_.bankEn(idx)).reduce(_ || _)
-    val mbistEn = dataMbistTesting & dataMbistSel(idx)
     val selectedReq = PriorityMux(reqs.map(_.bankSel(idx)), reqs)
     bank_en(idx) := en
     sel_req(idx) := selectedReq
     val req = Wire(new BankDataReq)
-    when(mbistEn){
+    when(mbistTesting){
       req := dataMbistReq
+      req.wen := dataMbistReq.wen & dataMbistSel(idx)
     }.otherwise {
       req.wen := en && selectedReq.wen
       req.widx := selectedReq.index
@@ -304,16 +306,16 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
   private class EccReq extends Bundle {
     val wen = Bool()
     val widx = UInt((rowBytes * 8).W)
-    val wdata = UInt(eccBits.W)
+    val wdata = UInt((eccBits * stackSize).W)
     val ren = Bool()
     val ridx = UInt((rowBytes * 8).W)
   }
   private val eccReqSeq = Seq.tabulate(nrStacks)(idx => {
     val banks = bankDataReqSeq.grouped(stackSize).toList(idx)
-    val mbistEn = eccMbistTesting & eccMbistSel(idx)
     val req = Wire(new EccReq)
-    when(mbistEn){
+    when(mbistTesting){
       req := eccMbistReq
+      req.wen := eccMbistReq.wen & eccMbistSel(idx)
     }.otherwise {
       req.wen := banks.head.wen
       req.widx := banks.head.widx
