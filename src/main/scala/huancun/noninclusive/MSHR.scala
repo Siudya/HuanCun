@@ -1086,6 +1086,9 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   )
 
   oc.opcode := Mux(
+    req.fromCmoHelper,
+    ReleaseData,
+    Mux(
     req.fromB,
     Cat(
       Mux(req.fromProbeHelper, Release(2, 1), ProbeAck(2, 1)),
@@ -1093,7 +1096,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
         req.needProbeAckData.getOrElse(false.B)) && highest_perm =/= INVALID
     ),
     if (alwaysReleaseData) ReleaseData else Cat(Release(2, 1), self_meta.dirty.asUInt)
-  )
+  ))
   oc.tag := Mux(req.fromB, req.tag, self_meta.tag)
   oc.set := req.set
 
@@ -1112,11 +1115,15 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
       Cat(INVALID, INVALID) -> NtoN
     )
   )
+
   oc.param := Mux(
+    req.fromCmoHelper,
+    TtoN, // DontCare Cmo RelaseData param
+    Mux(
     req.fromB,
     probeack_param,
     replace_param
-  )
+  ))
   oc.source := io.id
   oc.way := meta_reg.self.way
   oc.dirty := Mux(req.fromB, probe_dirty || self_meta.hit && self_meta.dirty, self_meta.dirty)
