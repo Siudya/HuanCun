@@ -26,27 +26,42 @@ import freechips.rocketchip.tilelink.TLMessages._
 import org.chipsalliance.cde.config.Parameters
 
 class SourceMap(width: Int = 16)(implicit p: Parameters) extends HuanCunBundle {
-  val valid = Bool()
   val source = UInt(bufIdxBits.W)
-  val beat = UInt(1.W)
+  val has_get_beat = Bool()
   val data = UInt((beatBytes*8).W)
 }
 
 class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunModule {
   val io = IO(new Bundle() {
-    val in = Flipped(DecoupledIO(new TLBundleA(edgeIn.bundle)))
-    val out = DecoupledIO(new TLBundleA(edgeIn.bundle))
+    val req_in = Flipped(DecoupledIO(new TLBundleA(edgeIn.bundle)))
+    val req_out = DecoupledIO(new TLBundleA(edgeIn.bundle))
+    val resp_in = Flipped(DecoupledIO(new TLBundleD(edgeIn.bundle)))
+    val resp_out = DecoupledIO(new TLBundleD(edgeIn.bundle))
   })
-  io.in.bits.source.getWidth
 
   // max_offset = blockBytes = 64B
   // min_offset = beatBytes = 32B
   // Notice: beatSize should be integer powers of 2
   val size_width = log2Ceil(beatSize)
 
-  val respBuf = RegInit(VecInit(Seq.fill(size)(0.U.asTypeOf(new SourceMap(width = io.in.bits.source.getWidth)))))
-  val (tag, set, offset) = parseAddress(io.in.bits.address)
-  val in_a = io.in.bits
+  /** ********************************
+   * ------------ Resp D -------------
+   * ******************************** */
+  val respBuf = RegInit(VecInit(Seq.fill(size)(0.U.asTypeOf(new SourceMap(width = io.req_in.bits.source.getWidth)))))
+  val bufValids = RegInit(VecInit(Seq.fill(size)(false.B)))
+  val full = bufValids.asUInt.andR
+  val nextPtr = PriorityEncoder(~bufValids.asUInt)
+  dontTouch(respBuf)
+  dontTouch(full)
+  dontTouch(nextPtr)
+  io.resp_out <> io.resp_in
+
+
+  /** ********************************
+   * -------------- Req A -------------
+   ********************************* */
+  val (tag, set, offset) = parseAddress(io.req_in.bits.address)
+  val in_a = io.req_in.bits
   val out_a_0 = WireInit(0.U.asTypeOf(in_a))
   val out_a_1 = WireInit(0.U.asTypeOf(in_a))
   val out_reg = RegInit(0.U.asTypeOf(in_a))
@@ -73,20 +88,27 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
 
     // ---------- Init data -------------//
     val block_mask = WireInit(0.U(blockBytes.W))
-    val block_data = WireInit(0.U((blockBytes*8).W))
     val beat_valid = WireInit(VecInit(Seq.fill(beatSize)(false.B)))
+    val mask_data_vec = WireInit(VecInit(Seq.fill(beatBytes)(0.U(8.W))))
+    val mask_data = WireInit(0.U((beatBytes*8).W))
+    val mask_all_1 = WireInit(VecInit(Seq.fill(beatBytes)(true.B)).asUInt)
     dontTouch(block_mask)
-    dontTouch(block_data)
     dontTouch(beat_valid)
+    dontTouch(mask_data_vec)
+    dontTouch(mask_data)
 
     // ---------- Parse data -------------//
     block_mask := in_a.mask << offset
-    block_data := in_a.data << offset*8.U
     beat_valid.zipWithIndex.foreach {
       case (valid, i) =>
         val mask = block_mask >> (beatBytes*i).U
         valid := mask(beatBytes, 0).orR
     }
+    mask_data_vec.zipWithIndex.foreach{
+      case (data, i) =>
+        data := Mux(in_a.mask.asBools(i), in_a.data >> 8*i, 0.U)
+    }
+    mask_data := mask_data_vec.asUInt
     assert(PopCount(beat_valid) <= 2.U)
     assert(PopCount(beat_valid) =/= 0.U, "Req mask is all zero")
 
@@ -97,31 +119,35 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
     val offset_1 = (beat << (offsetBits - size_width)).asUInt + beatBytes.U
     // beat 0
     out_a_0.address := Cat(tag, set, 0.U(offsetBits.W)) + offset_0
-    out_a_0.mask := in_a.mask << beat_offset
-    out_a_0.data := in_a.data << beat_offset * 8.U
+    out_a_0.mask := mask_all_1 << beat_offset
+    out_a_0.data := mask_data << beat_offset * 8.U
     // beat 1
     val mask_temp = WireInit(0.U((beatBytes*2).W))
     val data_temp = WireInit(0.U((beatBytes*2*8).W))
-    mask_temp := in_a.mask << beat_offset
-    data_temp := in_a.data << beat_offset * 8.U
+    mask_temp := mask_all_1 << beat_offset
+    data_temp := mask_data << beat_offset * 8.U
     out_a_1.address := Cat(tag, set, 0.U(offsetBits.W)) + offset_1
     out_a_1.mask := mask_temp(beatBytes*2-1, beatBytes)
     out_a_1.data := data_temp(beatBytes*8*2-1, beatBytes*8)
 
     // ---------- Need to add an extra beat -------------//
-    out_reg_valid := Mux(out_reg_valid && io.out.fire, false.B, out_reg_valid)
-    when(PopCount(beat_valid) === 2.U && !out_reg_valid && io.in.valid){
+    out_reg_valid := Mux(out_reg_valid && io.req_out.fire, false.B, out_reg_valid)
+    when(PopCount(beat_valid) === 2.U && !out_reg_valid && io.req_in.valid){
       out_reg := out_a_1
       out_reg_valid := true.B
+      respBuf(nextPtr).source := out_a_1.source
+      respBuf(nextPtr).has_get_beat := false.B
+      respBuf(nextPtr).data := 0.U
     }
 
-    // out bits
-    io.out.bits := Mux(out_reg_valid, out_reg, out_a_0)
+    // -------------------- out -----------------------//
+    io.req_out.bits := Mux(out_reg_valid, out_reg, out_a_0)
   }otherwise{
-    io.out.bits := Mux(out_reg_valid, out_reg, io.in.bits)
+    io.req_out.bits := Mux(out_reg_valid, out_reg, io.req_in.bits)
   }
 
-  io.out.valid := io.in.valid || out_reg_valid
-  io.in.ready := !out_reg_valid && io.out.ready
+  io.req_out.valid := io.req_in.valid || out_reg_valid
+  io.req_in.ready := !out_reg_valid && io.req_out.ready
 
+  assert(full && io.req_in.fire, "buf full, cant receive req in")
 }
