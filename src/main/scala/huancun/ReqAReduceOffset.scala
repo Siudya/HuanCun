@@ -25,9 +25,13 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tilelink.TLMessages._
 import org.chipsalliance.cde.config.Parameters
 
-class SourceMap(width: Int = 16)(implicit p: Parameters) extends HuanCunBundle {
-  val source = UInt(bufIdxBits.W)
+// Notice : Reserve size of source for this module
+
+class SourceMap(source_w: Int, opcode_w: Int)(implicit p: Parameters) extends HuanCunBundle {
+  val source_0 = UInt(source_w.W)
+  val source_1 = UInt(source_w.W)
   val has_get_beat = Bool()
+  val beat_offset = UInt(beatBytes.W)
   val data = UInt((beatBytes*8).W)
 }
 
@@ -47,15 +51,44 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
   /** ********************************
    * ------------ Resp D -------------
    * ******************************** */
-  val respBuf = RegInit(VecInit(Seq.fill(size)(0.U.asTypeOf(new SourceMap(width = io.req_in.bits.source.getWidth)))))
-  val bufValids = RegInit(VecInit(Seq.fill(size)(false.B)))
-  val full = bufValids.asUInt.andR
-  val nextPtr = PriorityEncoder(~bufValids.asUInt)
-  dontTouch(respBuf)
+  val resp_buf = RegInit(VecInit(Seq.fill(size)(0.U.asTypeOf(new SourceMap(source_w = io.req_in.bits.source.getWidth, opcode_w = io.req_in.bits.opcode.getWidth)))))
+  val buf_valids = RegInit(VecInit(Seq.fill(size)(false.B)))
+  val full = buf_valids.asUInt.andR
+  val nextPtr = PriorityEncoder(~buf_valids.asUInt)
+  val resp_in = io.resp_in.bits
+  val resp_out = WireInit(0.U.asTypeOf(resp_in))
+  val resp_out_cancel = WireInit(VecInit(Seq.fill(size)(false.B)))
+  dontTouch(resp_buf)
   dontTouch(full)
   dontTouch(nextPtr)
-  io.resp_out <> io.resp_in
+  dontTouch(resp_out_cancel)
 
+
+  resp_out := resp_in
+  when(io.resp_in.valid) {
+    resp_buf.zip(buf_valids.zip(resp_out_cancel)).foreach {
+      case (buf, (valid, cancel)) =>
+        val get_beat_0 = valid && buf.source_0 === resp_in.source && resp_in.opcode(2,1) === 0.U // AccessAck or AccessAckData
+        val get_beat_1 = valid && buf.source_1 === resp_in.source && resp_in.opcode(2,1) === 0.U // AccessAck or AccessAckData
+        when(get_beat_0 || get_beat_1){
+          when(buf.has_get_beat){
+            valid := Mux(io.resp_in.ready, false.B, valid)
+            val data_0 = Mux(get_beat_0, resp_in.data, buf.data)
+            val data_1 = Mux(get_beat_1, resp_in.data, buf.data)
+            resp_out.data := Cat(data_1, data_0) >> (buf.beat_offset * 8.U)
+            resp_out.source := buf.source_0
+          }.otherwise{
+            buf.data := Mux(io.resp_in.ready, resp_in.data, buf.data)
+            buf.has_get_beat := Mux(io.resp_in.ready, true.B, buf.has_get_beat)
+            cancel := true.B
+          }
+        }
+    }
+  }
+  io.resp_in.ready := io.resp_out.ready
+  io.resp_out.valid := io.resp_in.valid && !resp_out_cancel.asUInt.orR
+  io.resp_out.bits := resp_out
+//  io.resp_out <> io.resp_in
 
   /** ********************************
    * -------------- Req A -------------
@@ -79,8 +112,6 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
   dontTouch(beat_offset)
   dontTouch(out_a_0)
   dontTouch(out_a_1)
-
-
 
   when(beat_offset =/= 0.U){
     assert(in_a.opcode < AcquireBlock, "Req cant be TL-C when the address is not aligned")
@@ -129,15 +160,19 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
     out_a_1.address := Cat(tag, set, 0.U(offsetBits.W)) + offset_1
     out_a_1.mask := mask_temp(beatBytes*2-1, beatBytes)
     out_a_1.data := data_temp(beatBytes*8*2-1, beatBytes*8)
+    out_a_1.source := nextPtr // TODO: Optimize the logic
 
     // ---------- Need to add an extra beat -------------//
-    out_reg_valid := Mux(out_reg_valid && io.req_out.fire, false.B, out_reg_valid)
     when(PopCount(beat_valid) === 2.U && !out_reg_valid && io.req_in.valid){
       out_reg := out_a_1
       out_reg_valid := true.B
-      respBuf(nextPtr).source := out_a_1.source
-      respBuf(nextPtr).has_get_beat := false.B
-      respBuf(nextPtr).data := 0.U
+      buf_valids(nextPtr) := true.B
+      resp_buf(nextPtr).source_0 := out_a_0.source
+      resp_buf(nextPtr).source_1 := out_a_1.source
+      resp_buf(nextPtr).has_get_beat := false.B
+//      resp_buf(nextPtr).resp_opcode := Mux(resp_in.opcode === Get, AccessAckData, AccessAck) // TODO: has problem here
+      resp_buf(nextPtr).beat_offset := beat_offset
+      resp_buf(nextPtr).data := 0.U
     }
 
     // -------------------- out -----------------------//
@@ -146,8 +181,9 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
     io.req_out.bits := Mux(out_reg_valid, out_reg, io.req_in.bits)
   }
 
+  when(out_reg_valid && io.req_out.ready){ out_reg_valid := false.B }
   io.req_out.valid := io.req_in.valid || out_reg_valid
-  io.req_in.ready := !out_reg_valid && io.req_out.ready
+  io.req_in.ready := !out_reg_valid && io.req_out.ready && !full
 
-  assert(full && io.req_in.fire, "buf full, cant receive req in")
+  assert(!(full && io.req_in.fire), "It cant receive req in when buf full")
 }
