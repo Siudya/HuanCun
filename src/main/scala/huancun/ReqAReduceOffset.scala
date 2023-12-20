@@ -160,11 +160,11 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
     // ---------- Parse data -------------//
     beat_valids_0.zipWithIndex.foreach{
       case (valid, i) =>
-        valid := Mux(i.U < beat_offset, in_a.mask.asBools(i), false.B)
+        valid := Mux(i.U < (beatBytes.U-beat_offset), in_a.mask.asBools(i), false.B)
     }
     beat_valids_1.zipWithIndex.foreach {
       case (valid, i) =>
-        valid := Mux(i.U >= beat_offset, in_a.mask.asBools(i), false.B)
+        valid := Mux(i.U >= (beatBytes.U-beat_offset), in_a.mask.asBools(i), false.B)
     }
     beat_valid(0) := beat_valids_0.asUInt.orR
     beat_valid(1) := beat_valids_1.asUInt.orR
