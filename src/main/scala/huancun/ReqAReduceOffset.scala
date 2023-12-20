@@ -193,15 +193,13 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
     out_a_1.data := data_temp(beatBytes*8*2-1, beatBytes*8)
     out_a_1.source := next_beat2_ptr // TODO: Optimize the logic
 
-    when(!out_reg_valid && io.req_in.valid){
+    when(!out_reg_valid && io.req_in.fire){
       // ---------- No need to add an extra beat -------------//
       when(PopCount(beat_valid) === 1.U) {
         buf_beat1_valids(next_beat1_ptr) := true.B
         resp_beat1_buf(next_beat1_ptr).source := out_a_0.source
         resp_beat1_buf(next_beat1_ptr).beat_offset := beat_offset
         resp_beat1_buf(next_beat1_ptr).beat := beat_valid(1).asUInt
-        out_a := Mux(beat_valid(0), out_a_0, out_a_1)
-        out_a.source := in_a.source
       }
       // ---------- Need to add an extra beat -------------//
       .elsewhen(PopCount(beat_valid) === 2.U) {
@@ -214,11 +212,12 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
         //      resp_beat2_buf(next_beat2_ptr).resp_opcode := Mux(resp_in.opcode === Get, AccessAckData, AccessAck) // TODO: has problem here
         resp_beat2_buf(next_beat2_ptr).beat_offset := beat_offset
         resp_beat2_buf(next_beat2_ptr).data := 0.U
-        out_a := out_a_0
       }
     }
 
     // -------------------- out -----------------------//
+    out_a := Mux(beat_valid(0), out_a_0, out_a_1)
+    out_a.source := in_a.source
     io.req_out.bits := Mux(out_reg_valid, out_reg, out_a)
   }otherwise{
     io.req_out.bits := Mux(out_reg_valid, out_reg, io.req_in.bits)
