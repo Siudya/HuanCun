@@ -53,6 +53,13 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
     }
   }
 
+  def connect[T <: Bundle](out: DecoupledIO[T], in: DecoupledIO[T], init: Boolean = true): Unit = {
+    out <> in
+    if (init) {
+      out.bits := Mux(in.valid, in.bits, 0.U.asTypeOf((in.bits)))
+    }
+  }
+
   // Inner channels
   val reqA_reduce = Module(new ReqAReduceOffset(size = 16))
   val sinkA = Module(new SinkA)
@@ -62,13 +69,18 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
   val sinkE = Module(new SinkE)
 
   val inBuf = cacheParams.innerBuf
-  reqA_reduce.io.req_in <> inBuf.a(io.in.a)
+  // A
+  connect(reqA_reduce.io.req_in, inBuf.a(io.in.a))
   sinkA.io.a <> reqA_reduce.io.req_out
+  // B
   io.in.b <> inBuf.b(sourceB.io.b)
-  sinkC.io.c <> inBuf.c(io.in.c)
+  // C
+  connect(sinkC.io.c, inBuf.c(io.in.c))
+  // D
   reqA_reduce.io.resp_in <> sourceD.io.d
   io.in.d <> inBuf.d(reqA_reduce.io.resp_out)
-  sinkE.io.e <> inBuf.e(io.in.e)
+  // E
+  connect(sinkE.io.e, inBuf.e(io.in.e))
 
   // Outer channles
   val sourceA = Module(new SourceA(edgeOut))
@@ -83,12 +95,17 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
   refillBuffer.io.w <> sinkD.io.bypass_write
 
   val outBuf = cacheParams.outerBuf
+  // A
   io.out.a <> outBuf.a(sourceA.io.a)
-  sinkB.io.b <> outBuf.b(io.out.b)
+  // B
+  connect(sinkB.io.b, outBuf.b(io.out.b))
+  // C
   val out_c = Wire(io.out.c.cloneType)
   TLArbiter.lowest(edgeOut, out_c, sinkC.io.release, sourceC.io.c)
   io.out.c <> outBuf.c(out_c)
-  sinkD.io.d <> outBuf.d(io.out.d)
+  // D
+  connect(sinkD.io.d, outBuf.d(io.out.d))
+  // E
   io.out.e <> outBuf.e(sourceE.io.e)
 
   // MSHRs
