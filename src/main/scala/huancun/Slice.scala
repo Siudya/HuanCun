@@ -54,6 +54,7 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
   }
 
   // Inner channels
+  val reqA_reduce = Module(new ReqAReduceOffset(size = 16))
   val sinkA = Module(new SinkA)
   val sourceB = Module(new SourceB)
   val sinkC = Module(if (cacheParams.inclusive) new inclusive.SinkC else new noninclusive.SinkC)
@@ -61,10 +62,12 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
   val sinkE = Module(new SinkE)
 
   val inBuf = cacheParams.innerBuf
-  sinkA.io.a <> inBuf.a(io.in.a)
+  reqA_reduce.io.req_in <> inBuf.a(io.in.a)
+  sinkA.io.a <> reqA_reduce.io.req_out
   io.in.b <> inBuf.b(sourceB.io.b)
   sinkC.io.c <> inBuf.c(io.in.c)
-  io.in.d <> inBuf.d(sourceD.io.d)
+  reqA_reduce.io.resp_in <> sourceD.io.d
+  io.in.d <> inBuf.d(reqA_reduce.io.resp_out)
   sinkE.io.e <> inBuf.e(io.in.e)
 
   // Outer channles
