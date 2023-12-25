@@ -942,11 +942,12 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
       io.id
     )
   }
-
+  
+  val will_schedule_writeprobe = WireInit(false.B)
   val can_start = Mux(client_dir_conflict, probe_helper_finish, true.B)
   io.tasks.source_a.valid := io.enable && (!s_acquire || !s_transferput) && s_release && s_probe && w_probeacklast && can_start
   io.tasks.source_b.valid := io.enable && Mux(!req.fromCmoHelper, !s_probe && s_release, !s_probe)
-  io.tasks.source_c.valid := io.enable && (Mux(!req.fromCmoHelper, !s_release && s_writeprobe, !s_release && w_probeack) || !s_probeack && s_writerelease && w_sinkcack && w_probeack)
+  io.tasks.source_c.valid := io.enable && (Mux(!req.fromCmoHelper, !s_release && s_writeprobe && !will_schedule_writeprobe, !s_release && w_probeack && s_writeprobe && !will_schedule_writeprobe) || !s_probeack && s_writerelease && w_sinkcack && w_probeack)
   io.tasks.source_d.valid := io.enable && !s_execute && can_start && w_grant && s_writeprobe && w_sinkcack && w_probeacklast && s_transferput // TODO: is there dependency between s_writeprobe and w_probeack?
   io.tasks.source_e.valid := !s_grantack && w_grantfirst
   io.tasks.dir_write.valid := io.enable && !s_wbselfdir && no_wait && can_start
@@ -1307,6 +1308,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   client_probeack_param_vec := client_probeack_param_vec_reg
 
   val sinkc_resp_last = sink_c_resp_valid && io.resps.sink_c.bits.last
+
   // update for each client
   when(req_valid && sinkc_resp_last) {
     val client = OHToUInt(getClientBitOH(io.resps.sink_c.bits.source))
@@ -1314,7 +1316,10 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     client_probeack_param_vec(client) := io.resps.sink_c.bits.param
   }
   when(req_valid && sinkc_resp_last && io.resps.sink_c.bits.hasData) {
+    will_schedule_writeprobe := true.B
     someClientHasProbeAckData := true.B
+  }.otherwise{
+    will_schedule_writeprobe := false.B
   }
 
   when(req_valid && sinkc_resp_last && probeack_last) {
