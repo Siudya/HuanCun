@@ -118,7 +118,7 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
   /** ********************************
    * -------------- Req A -------------
    ********************************* */
-  val (tag, set, offset) = parseAddress(io.req_in.bits.address)
+  val (tag, set, offset) = parseFullAddress(io.req_in.bits.address)
   val in_a = io.req_in.bits
   val out_a = WireInit(0.U.asTypeOf(in_a))
   val out_a_0 = WireInit(0.U.asTypeOf(in_a))
@@ -184,7 +184,7 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
     out_a_0 := in_a
     out_a_1 := in_a
     // beat 0
-    out_a_0.address := Cat(tag, set, 0.U(offsetBits.W)) + (beat << (offsetBits - size_width)).asUInt
+    out_a_0.address := Cat(tag, set, 0.U(offsetBits.W)) +& (beat << (offsetBits - size_width)).asUInt
     out_a_0.mask := mask_all_1 << beat_offset
     out_a_0.data := mask_data << beat_offset * 8.U
     // beat 1
@@ -192,7 +192,7 @@ class ReqAReduceOffset(size: Int = 16)(implicit p: Parameters) extends HuanCunMo
     val data_temp = WireInit(0.U((beatBytes*2*8).W))
     mask_temp := mask_all_1 << beat_offset
     data_temp := mask_data << beat_offset * 8.U
-    out_a_1.address := Cat(tag, set, 0.U(offsetBits.W)) + (beat << (offsetBits - size_width)).asUInt + beatBytes.U
+    out_a_1.address := Cat(tag, set, 0.U(offsetBits.W)) +& (beat << (offsetBits - size_width)).asUInt + beatBytes.U
     out_a_1.mask := mask_temp(beatBytes*2-1, beatBytes)
     out_a_1.data := data_temp(beatBytes*8*2-1, beatBytes*8)
     out_a_1.source := next_beat2_ptr // TODO: Optimize the logic
