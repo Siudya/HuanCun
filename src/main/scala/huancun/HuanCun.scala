@@ -69,7 +69,10 @@ trait HasHuanCunParameters {
     else cacheParams.clientCaches.head.aliasBitsOpt
 
   val bufBlocks = mshrs / 2
-  val bufIdxBits = log2Ceil(bufBlocks)
+  val sinkCbufBlocks = mshrsAll
+
+  val bufIdxBits = log2Ceil(sinkCbufBlocks)
+  assert(sinkCbufBlocks >= bufBlocks, "sinkCbufBlocks should bigger than bufBlocks")
 
   val alwaysReleaseData = cacheParams.alwaysReleaseData
 
