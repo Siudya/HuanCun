@@ -63,6 +63,7 @@ abstract class BaseMSHRIO[T_RESULT <: BaseDirResult, T_DIR_W <: BaseDirWrite, T_
   val resps = Flipped(new MSHRResps)
   val nestedwb = Input(new NestedWriteback)
   val ecc = Valid(new EccInfo)
+  val fpga_dbg = ValidIO(new L3MSHRDbgSignal)
 }
 
 abstract class BaseMSHR[T_RESULT <: BaseDirResult, T_DIR_W <: BaseDirWrite, T_TAG_W <: BaseTagWrite](

@@ -234,3 +234,22 @@ class LlcPrefetchRecv extends Bundle{
   val addr = UInt(64.W)
   val addr_valid = Bool()
 }
+
+class L3MSHRDbgSignal extends Bundle {
+  // req mes
+  val tag = UInt(64.W)
+  val set = UInt(64.W)
+  val opcode = UInt(3.W)
+  val param = UInt(3.W)
+  // dir mes
+  val hit = Bool()
+  val state = UInt(3.W)
+  val clientState = UInt(12.W) // 3 * 4 = 12
+  // state mes
+  val mshr_state = UInt(23.W)
+}
+
+class L3SinkCDbgSignal(bugSize: Int = 7) extends Bundle{
+  val c_ready = Bool()
+  val bufVals = UInt(bugSize.W)
+}

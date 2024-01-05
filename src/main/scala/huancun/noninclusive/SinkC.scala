@@ -54,6 +54,9 @@ class SinkC(implicit p: Parameters) extends BaseSinkC {
 
   c.ready := Mux(first, !noSpace && !(isReq && !io.alloc.ready), true.B)
 
+  io.fpga_dbg.c_ready := io.c.ready
+  io.fpga_dbg.bufVals := bufVals
+
   // alloc.ready depends on alloc.valid
   io.alloc.valid := c.valid && isReq && first && !noSpace
   io.alloc.bits.channel := "b100".U

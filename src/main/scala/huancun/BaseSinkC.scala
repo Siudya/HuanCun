@@ -37,6 +37,7 @@ abstract class BaseSinkC(implicit p: Parameters) extends HuanCunModule {
     val sourceD_r_hazard = Flipped(ValidIO(new SourceDHazard))
     // directly release inner data to next level
     val release = DecoupledIO(new TLBundleC(edgeOut.bundle))
+    val fpga_dbg = Output(new L3SinkCDbgSignal(bufBlocks))
   })
   io.alloc.bits.isPrefetch.foreach(_ := false.B)
 

@@ -175,6 +175,12 @@ abstract class HuanCunBundle(implicit val p: Parameters) extends Bundle with Has
 
 abstract class HuanCunModule(implicit val p: Parameters) extends Module with HasHuanCunParameters
 
+class L3DbgIO extends Bundle {
+  val mshrsState = Vec(16, ValidIO(new L3MSHRDbgSignal))
+  val sinkCSiganl = Output(new L3SinkCDbgSignal)
+}
+
+
 class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasHuanCunParameters {
 
   val xfer = TransferSizes(blockBytes, blockBytes)
@@ -253,6 +259,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     val io = IO(new Bundle {
       val perfEvents = Vec(banks, Vec(numPCntHc,Output(UInt(6.W))))
       val ecc_error = Valid(UInt(64.W))
+      val fpga_dbg = Vec(banks, new L3DbgIO)
     })
 
     val sizeBytes = cacheParams.toCacheParams.capacity.toDouble
@@ -355,6 +362,10 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
         } else {
           None
         }
+
+        io.fpga_dbg(i).mshrsState := slice.io.mshrsState
+        io.fpga_dbg(i).sinkCSiganl := slice.io.sinkCSiganl
+
         slice.io.in <> in
         in.b.bits.address := restoreAddress(slice.io.in.b.bits.address, i)
         out <> slice.io.out

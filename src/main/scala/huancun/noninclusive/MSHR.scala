@@ -526,6 +526,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   }
 
   // Set tasks to be scheduled and resps to wait for
+  // 13
   val s_acquire = RegInit(true.B) // source_a
   val s_probe = RegInit(true.B) // source_b
   val s_release = RegInit(true.B) // source_c
@@ -541,7 +542,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   val s_writeprobe = RegInit(true.B)
   val s_triggerprefetch = prefetchOpt.map(_ => RegInit(true.B))
   val s_prefetchack = prefetchOpt.map(_ => RegInit(true.B))
-
+  // 10
   val w_probeackfirst = RegInit(true.B) // first beat of the last probeack
   val w_probeacklast = RegInit(true.B) // last beat of the last probeack
   val w_probeack = RegInit(true.B)
@@ -552,6 +553,21 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   val w_grantack = RegInit(true.B)
   val w_putwritten = RegInit(true.B)
   val w_sinkcack = RegInit(true.B)
+
+  // fpga debug signal
+  io.fpga_dbg.valid := req_valid
+  io.fpga_dbg.bits.tag := req.tag
+  io.fpga_dbg.bits.set := req.set
+  io.fpga_dbg.bits.opcode := req.opcode
+  io.fpga_dbg.bits.param := req.param
+  // dir mes
+  io.fpga_dbg.bits.hit := meta_reg.self.hit
+  io.fpga_dbg.bits.state := meta_reg.self.state
+  io.fpga_dbg.bits.clientState := meta_reg.clients.states.asUInt // valid-bit of clients
+  // state mes
+  // schedule
+  io.fpga_dbg.bits.mshr_state := Cat(s_acquire, s_probe, s_release, s_probeack, s_execute, s_grantack, s_wbselfdir, s_wbselftag, s_wbclientsdir, s_wbclientstag, s_transferput, s_writerelease, s_writeprobe,
+    w_probeackfirst, w_probeacklast, w_probeack, w_grantfirst, w_grantlast, w_grant, w_releaseack, w_grantack, w_putwritten, w_sinkcack)
 
   val acquire_flag = RegInit(false.B)
 

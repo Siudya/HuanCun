@@ -37,6 +37,8 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
     val ctl_req = Flipped(DecoupledIO(new CtrlReq()))
     val ctl_resp = DecoupledIO(new CtrlResp())
     val ctl_ecc = DecoupledIO(new EccInfo())
+    val mshrsState = Vec(16, ValidIO(new L3MSHRDbgSignal))
+    val sinkCSiganl = Output(new L3SinkCDbgSignal)
   })
   println(s"clientBits: $clientBits")
 
@@ -700,6 +702,11 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
     mshrReq
   }
 
+  io.mshrsState.zip(ms).foreach {
+    case (s, m) =>
+      s := m.io.fpga_dbg
+  }
+  io.sinkCSiganl := sinkC.io.fpga_dbg
 
   val perfinfo = IO(Output(Vec(numPCntHc, (UInt(6.W)))))
   perfinfo := DontCare
