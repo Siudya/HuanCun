@@ -184,14 +184,20 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
   val atom = TransferSizes(1, cacheParams.channelBytes.d.get)
   val access = TransferSizes(1, blockBytes)
 
-  val clientPortParams = TLMasterPortParameters.v2(
+  val clientPortParams = (m: TLMasterPortParameters) => TLMasterPortParameters.v2(
     Seq(
       TLMasterParameters.v2(
         name = cacheParams.name,
         supports = TLSlaveToMasterTransferSizes(
           probe = xfer
         ),
-        sourceId = IdRange(0, mshrsAll)
+        sourceId = {
+          println(s"[Diplomacy stage] ${cacheParams.name} client num: ${m.masters.length}")
+          println(s"[Diplomacy stage] ${cacheParams.name} client sourceId:")
+          m.masters.zipWithIndex.foreach { case (m, i) => println(s"[Diplomacy stage] \t[${i}]${m.name} => start: ${m.sourceId.start} end: ${m.sourceId.end}") }
+          println(s"[Diplomacy stage] ${cacheParams.name} sourceId idRange(0, ${mshrsAll})\n")
+          IdRange(0, mshrsAll)
+        }
       )
     ),
     channelBytes = cacheParams.channelBytes,
@@ -202,7 +208,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
   )
 
   val node = TLAdapterNode(
-    clientFn = { _ => clientPortParams },
+    clientFn = clientPortParams,
     managerFn = { m =>
       TLSlavePortParameters.v1(
         m.managers.map { m =>
