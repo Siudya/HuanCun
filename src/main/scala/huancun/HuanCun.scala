@@ -44,6 +44,8 @@ trait HasHuanCunParameters {
   val hasAliasBits = if(cacheParams.clientCaches.isEmpty) false
     else cacheParams.clientCaches.head.needResolveAlias
 
+  val bufferReductionFactor = 4
+
   val blockBytes = cacheParams.blockBytes
   val beatBytes = cacheParams.channelBytes.d.get
   val beatSize = blockBytes / beatBytes
@@ -68,7 +70,7 @@ trait HasHuanCunParameters {
   val aliasBitsOpt = if(cacheParams.clientCaches.isEmpty) None
     else cacheParams.clientCaches.head.aliasBitsOpt
 
-  val bufBlocks = mshrs / 2
+  val bufBlocks = (mshrs / 2)/bufferReductionFactor
   val sinkCbufBlocks = mshrsAll
 
   val bufIdxBits = log2Ceil(sinkCbufBlocks)
