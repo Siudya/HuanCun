@@ -235,16 +235,11 @@ class LlcPrefetchRecv extends Bundle{
   val addr_valid = Bool()
 }
 
-class L3MSHRDbgSignal extends Bundle {
+class L3MSHRDbgSignal(tagBits: Int=64, setBits:Int=64) extends Bundle {
   // req mes
-  val tag = UInt(64.W)
-  val set = UInt(64.W)
-  val opcode = UInt(3.W)
-  val param = UInt(3.W)
+  val req_mes = UInt((tagBits+setBits+3+3).W) // tag + set + opcode + param
   // dir mes
-  val hit = Bool()
-  val state = UInt(3.W)
-  val clientState = UInt(12.W) // 3 * 4 = 12
+  val dir_mes = UInt((tagBits+setBits+1+3+12).W) // tag + set + hit + state + self_clients
   // state mes
   val mshr_state = UInt(23.W)
 }

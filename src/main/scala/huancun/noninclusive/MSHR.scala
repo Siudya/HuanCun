@@ -556,14 +556,19 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
 
   // fpga debug signal
   io.fpga_dbg.valid := req_valid
-  io.fpga_dbg.bits.tag := req.tag
-  io.fpga_dbg.bits.set := req.set
-  io.fpga_dbg.bits.opcode := req.opcode
-  io.fpga_dbg.bits.param := req.param
+  io.fpga_dbg.bits.req_mes := Cat(
+    req.tag,
+    req.set,
+    req.opcode,
+    req.param
+  )
   // dir mes
-  io.fpga_dbg.bits.hit := meta_reg.self.hit
-  io.fpga_dbg.bits.state := meta_reg.self.state
-  io.fpga_dbg.bits.clientState := meta_reg.clients.states.asUInt // valid-bit of clients
+  io.fpga_dbg.bits.dir_mes := Cat(
+    meta_reg.self.tag,
+    meta_reg.set,
+    meta_reg.self.state,
+    meta_reg.self.clientStates.asUInt
+  )
   // state mes
   // schedule
   io.fpga_dbg.bits.mshr_state := Cat(s_acquire, s_probe, s_release, s_probeack, s_execute, s_grantack, s_wbselfdir, s_wbselftag, s_wbclientsdir, s_wbclientstag, s_transferput, s_writerelease, s_writeprobe,
