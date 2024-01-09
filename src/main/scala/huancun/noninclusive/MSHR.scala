@@ -566,6 +566,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.fpga_dbg.bits.dir_mes := Cat(
     meta_reg.self.tag,
     meta_reg.set,
+    meta_reg.self.hit,
     meta_reg.self.state,
     meta_reg.self.clientStates.asUInt
   )
