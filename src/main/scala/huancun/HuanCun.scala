@@ -366,8 +366,8 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
           None
         }
 
-        io.fpga_dbg(i).mshrsState := slice.io.mshrsState
-        io.fpga_dbg(i).sinkCSiganl := slice.io.sinkCSiganl
+        io.fpga_dbg(i).mshrsState := RegNext(slice.io.mshrsState)
+        io.fpga_dbg(i).sinkCSiganl := RegNext(slice.io.sinkCSiganl)
 
         slice.io.in <> in
         in.b.bits.address := restoreAddress(slice.io.in.b.bits.address, i)
