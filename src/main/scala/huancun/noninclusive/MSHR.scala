@@ -560,7 +560,9 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     req.tag,
     req.set,
     req.opcode,
-    req.param
+    req.param,
+    req.fromProbeHelper,
+    req.fromCmoHelper,
   )
   // dir mes
   io.fpga_dbg.bits.dir_mes := Cat(
@@ -574,6 +576,32 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   // schedule
   io.fpga_dbg.bits.mshr_state := Cat(s_acquire, s_probe, s_release, s_probeack, s_execute, s_grantack, s_wbselfdir, s_wbselftag, s_wbclientsdir, s_wbclientstag, s_transferput, s_writerelease, s_writeprobe,
     w_probeackfirst, w_probeacklast, w_probeack, w_grantfirst, w_grantlast, w_grant, w_releaseack, w_grantack, w_putwritten, w_sinkcack)
+  // task_io_info
+  io.fpga_dbg.bits.task_io_info := Cat(
+    io.tasks.source_a.valid,
+    io.tasks.source_a.ready,
+    
+    io.tasks.source_b.valid,
+    io.tasks.source_b.ready,
+    
+    io.tasks.source_c.valid,
+    io.tasks.source_c.ready,
+
+    io.tasks.source_d.valid,
+    io.tasks.source_d.ready,
+
+    io.tasks.source_e.valid,
+    io.tasks.source_e.ready,
+  )
+  // misc info
+  val client_dir_conflict_dup = WireInit(false.B)
+  val probe_helper_finish_dup = WireInit(false.B)
+  io.fpga_dbg.bits.misc_info := Cat(
+    client_dir_conflict_dup,
+    probe_helper_finish_dup,
+    io.enable,
+    iam,
+  )
 
   val acquire_flag = RegInit(false.B)
 
@@ -967,6 +995,8 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   
   val will_schedule_writeprobe = WireInit(false.B)
   val can_start = Mux(client_dir_conflict, probe_helper_finish, true.B)
+  client_dir_conflict_dup := client_dir_conflict
+  probe_helper_finish_dup := probe_helper_finish
   io.tasks.source_a.valid := io.enable && (!s_acquire || !s_transferput) && s_release && s_probe && w_probeacklast && can_start
   io.tasks.source_b.valid := io.enable && Mux(!req.fromCmoHelper, !s_probe && s_release, !s_probe)
   io.tasks.source_c.valid := io.enable && (Mux(!req.fromCmoHelper, !s_release && s_writeprobe && !will_schedule_writeprobe, !s_release && w_probeack && s_writeprobe && !will_schedule_writeprobe) || !s_probeack && s_writerelease && w_sinkcack && w_probeack)

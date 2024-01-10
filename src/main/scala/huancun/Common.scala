@@ -237,11 +237,15 @@ class LlcPrefetchRecv extends Bundle{
 
 class L3MSHRDbgSignal(tagBits: Int=64, setBits:Int=64) extends Bundle {
   // req mes
-  val req_mes = UInt((tagBits+setBits+3+3).W) // tag + set + opcode + param
+  val req_mes = UInt((tagBits+setBits+3+3+1+1).W) // tag + set + opcode + param
   // dir mes
   val dir_mes = UInt((tagBits+setBits+1+3+12).W) // tag + set + hit + state + self_clients
   // state mes
   val mshr_state = UInt(23.W)
+  // tasks info
+  val task_io_info = UInt((2+2+2+2+2).W)
+  // misc info
+  val misc_info = UInt((1+1+1+3).W)
 }
 
 class L3SinkCDbgSignal(bugSize: Int = 7) extends Bundle{
