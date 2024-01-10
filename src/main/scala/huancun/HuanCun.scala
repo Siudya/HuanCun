@@ -72,7 +72,7 @@ trait HasHuanCunParameters {
   val sinkCbufBlocks = mshrsAll
 
   val bufIdxBits = log2Ceil(sinkCbufBlocks)
-  assert(sinkCbufBlocks >= bufBlocks, "sinkCbufBlocks should bigger than bufBlocks")
+  require(sinkCbufBlocks >= bufBlocks, "sinkCbufBlocks should bigger than bufBlocks")
 
   val alwaysReleaseData = cacheParams.alwaysReleaseData
 
