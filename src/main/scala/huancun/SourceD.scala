@@ -54,6 +54,8 @@ class SourceD(implicit p: Parameters) extends HuanCunModule {
     val pb_beat = Input(new PutBufferBeatEntry)
     // resp when merged putdata is written back
     val resp = ValidIO(new SourceDResp)
+
+    val fpga_dbg = Output(L3SourceDDbgSignal)
   })
 
   val d = io.d
@@ -69,6 +71,15 @@ class SourceD(implicit p: Parameters) extends HuanCunModule {
         req.opcode === TLMessages.AccessAck && !req.bypassPut
       )
   }
+
+  val assert_1 = WireInit(false.B)
+  val assert_2 = WireInit(false.B)
+  val assert_3 = WireInit(false.B)
+  io.fpga_dbg.queen_info := Cat(
+    assert_1,
+    assert_2,
+    assert_3,
+  )
 
   // stage1
   val busy = RegInit(false.B)
@@ -89,6 +100,7 @@ class SourceD(implicit p: Parameters) extends HuanCunModule {
   s1_queue.io.enq.valid := s1_bypass_hit
   s1_queue.io.enq.bits := s1_bypass_data
   assert(!s1_queue.io.enq.valid || s1_queue.io.enq.ready)
+  assert_1 := !(!s1_queue.io.enq.valid || s1_queue.io.enq.ready)
 
   io.bs_raddr.valid := s1_valid_r && !s1_req.useBypass
   io.bs_raddr.bits.way := s1_req.way
@@ -206,6 +218,7 @@ class SourceD(implicit p: Parameters) extends HuanCunModule {
   val s3_queue = Module(new Queue(new DSData, sramLatency + 1, flow = true))
 
   assert(!s3_valid || needData(s3_regs.req), "Only data task can go to stage3!")
+  assert_2 := !(!s3_valid || needData(s3_regs.req))
 
   pbQueue.io.enq.bits := io.pb_beat
   pbQueue.io.enq.valid := RegNext(io.pb_pop.fire, false.B)
@@ -231,6 +244,7 @@ class SourceD(implicit p: Parameters) extends HuanCunModule {
   )
   s3_queue.io.enq.bits := io.bs_rdata
   assert(!s3_queue.io.enq.valid || s3_queue.io.enq.ready)
+  assert_3 := !(!s3_queue.io.enq.valid || s3_queue.io.enq.ready)
   s3_queue.io.deq.ready := Mux(s3_need_pb, s4_ready && (s3_counter =/= 0.U || s3_d.ready), s3_d.ready) && s3_valid
 
   pipe.io.out.ready := Mux(s3_need_pb, s4_ready && (s3_counter =/= 0.U || s3_d.ready), s3_d.ready)

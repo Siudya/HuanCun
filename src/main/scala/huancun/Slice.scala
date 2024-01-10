@@ -39,6 +39,7 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
     val ctl_ecc = DecoupledIO(new EccInfo())
     val mshrsState = Vec(16, ValidIO(new L3MSHRDbgSignal))
     val sinkCSiganl = Output(new L3SinkCDbgSignal)
+    val sourceDSignal = Output(new L3SourceDDbgSignal)
   })
   println(s"clientBits: $clientBits")
 
@@ -707,6 +708,7 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
       s := m.io.fpga_dbg
   }
   io.sinkCSiganl := sinkC.io.fpga_dbg
+  io.sourceDSignal := sourceD.io.fpga_dbg
 
   val perfinfo = IO(Output(Vec(numPCntHc, (UInt(6.W)))))
   perfinfo := DontCare

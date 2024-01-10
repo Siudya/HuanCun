@@ -181,6 +181,7 @@ abstract class HuanCunModule(implicit val p: Parameters) extends Module with Has
 class L3DbgIO extends Bundle {
   val mshrsState = Vec(16, ValidIO(new L3MSHRDbgSignal))
   val sinkCSiganl = Output(new L3SinkCDbgSignal)
+  val sourceDSignal := Output(new L3SourceDDbgSignal)
 }
 
 
@@ -368,6 +369,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
 
         io.fpga_dbg(i).mshrsState := RegNext(slice.io.mshrsState)
         io.fpga_dbg(i).sinkCSiganl := RegNext(slice.io.sinkCSiganl)
+        io.fpga_dbg(i).sourceDSignal := RegNext(slice.io.sourceDSignal)
 
         slice.io.in <> in
         in.b.bits.address := restoreAddress(slice.io.in.b.bits.address, i)
