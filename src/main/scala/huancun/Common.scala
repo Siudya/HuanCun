@@ -253,6 +253,6 @@ class L3SinkCDbgSignal(bugSize: Int = 7) extends Bundle{
   val bufVals = UInt(bugSize.W)
 }
 
-class L3SourceDDbgSignal(implicit p: Parameters) extends HuanCunBundle {
+class L3SourceDDbgSignal extends Bundle {
   val assert_info = UInt((1+1+1).W)
 }

@@ -55,7 +55,7 @@ class SourceD(implicit p: Parameters) extends HuanCunModule {
     // resp when merged putdata is written back
     val resp = ValidIO(new SourceDResp)
 
-    val fpga_dbg = Output(L3SourceDDbgSignal)
+    val fpga_dbg = Output(new L3SourceDDbgSignal)
   })
 
   val d = io.d
@@ -75,7 +75,7 @@ class SourceD(implicit p: Parameters) extends HuanCunModule {
   val assert_1 = WireInit(false.B)
   val assert_2 = WireInit(false.B)
   val assert_3 = WireInit(false.B)
-  io.fpga_dbg.queen_info := Cat(
+  io.fpga_dbg.assert_info := Cat(
     assert_1,
     assert_2,
     assert_3,

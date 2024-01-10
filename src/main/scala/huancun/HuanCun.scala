@@ -181,7 +181,7 @@ abstract class HuanCunModule(implicit val p: Parameters) extends Module with Has
 class L3DbgIO extends Bundle {
   val mshrsState = Vec(16, ValidIO(new L3MSHRDbgSignal))
   val sinkCSiganl = Output(new L3SinkCDbgSignal)
-  val sourceDSignal := Output(new L3SourceDDbgSignal)
+  val sourceDSignal = Output(new L3SourceDDbgSignal)
 }
 
 
