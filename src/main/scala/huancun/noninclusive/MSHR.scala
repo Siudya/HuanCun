@@ -82,6 +82,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   val req_put = req.opcode(2,1) === 0.U
   val req_needT = needT(req.opcode, req.param)
   val promoteT_safe = RegInit(true.B)
+  val waitRelease = RegInit(false.B)
   val gotT = RegInit(false.B)
   val gotDirty = RegInit(false.B)
   val a_do_release = RegInit(false.B)
@@ -585,6 +586,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     w_sinkcack := true.B
 
     promoteT_safe := true.B
+    waitRelease := false.B
     gotT := false.B
     probe_dirty := false.B
     probes_done := 0.U
@@ -948,7 +950,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.tasks.source_a.valid := io.enable && (!s_acquire || !s_transferput) && s_release && s_probe && w_probeacklast && can_start
   io.tasks.source_b.valid := io.enable && Mux(!req.fromCmoHelper, !s_probe && s_release, !s_probe)
   io.tasks.source_c.valid := io.enable && (Mux(!req.fromCmoHelper, !s_release && s_writeprobe && !will_schedule_writeprobe, !s_release && w_probeack && s_writeprobe && !will_schedule_writeprobe) || !s_probeack && s_writerelease && w_sinkcack && w_probeack)
-  io.tasks.source_d.valid := io.enable && !s_execute && can_start && w_grant && s_writeprobe && w_sinkcack && w_probeacklast && s_transferput // TODO: is there dependency between s_writeprobe and w_probeack?
+  io.tasks.source_d.valid := io.enable && !s_execute && can_start && w_grant && s_writeprobe && w_sinkcack && w_probeacklast && s_transferput && !(waitRelease && !nested_c_hit) // TODO: is there dependency between s_writeprobe and w_probeack?
   io.tasks.source_e.valid := !s_grantack && w_grantfirst
   io.tasks.dir_write.valid := io.enable && !s_wbselfdir && no_wait && can_start
   io.tasks.tag_write.valid := io.enable && !s_wbselftag && no_wait && can_start
@@ -1132,7 +1134,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   od.sinkId := io.id
   od.useBypass := (!self_meta.hit || self_meta.state === BRANCH && req_needT) &&
     (!probe_dirty || acquire_flag && oa.opcode =/= AcquirePerm) &&
-    !(meta_reg.self.error || meta_reg.clients.error) && !req_put
+    !(meta_reg.self.error || meta_reg.clients.error) && !req_put && !waitRelease
   od.sourceId := req.source
   od.set := req.set
   od.tag := req.tag
@@ -1356,15 +1358,18 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
       when(acquireperm_alias && !req_client_meta.hit) {
         printf("BUG_REPRODUCE: nested acquire perm alias\n")
       }
-      promoteT_safe := false.B
-      s_acquire := false.B
-      w_grantfirst := false.B
-      w_grantlast := false.B
-      w_grant := false.B
-      when (!bypassGet && !bypassPut_latch) {
-        s_grantack := false.B
-      }
-      need_block_downwards := true.B
+      // promoteT_safe := false.B
+      // s_acquire := false.B
+      // w_grantfirst := false.B
+      // w_grantlast := false.B
+      // w_grant := false.B
+      // when (!bypassGet && !bypassPut_latch) {
+      //   s_grantack := false.B
+      // }
+      // need_block_downwards := true.B
+      
+      // if L3 accept a ProbeAck.NtoN and nested_c_hit is false then we should wait ReleaseData
+      waitRelease := true.B
     }
 
     // we assume clients will ack data for us at first,
