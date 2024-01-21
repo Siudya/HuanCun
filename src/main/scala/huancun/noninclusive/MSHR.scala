@@ -83,6 +83,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   val req_needT = needT(req.opcode, req.param)
   val promoteT_safe = RegInit(true.B)
   val waitRelease = RegInit(false.B)
+  val hasBeenBlock = RegInit(false.B)
   val gotT = RegInit(false.B)
   val gotDirty = RegInit(false.B)
   val a_do_release = RegInit(false.B)
@@ -587,6 +588,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
 
     promoteT_safe := true.B
     waitRelease := false.B
+    hasBeenBlock := false.B
     gotT := false.B
     probe_dirty := false.B
     probes_done := 0.U
@@ -961,6 +963,10 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.tasks.sink_c.valid := io.enable && ((!s_writerelease && (!releaseSave || s_release)) || (!s_writeprobe))
   io.tasks.prefetch_train.foreach(_.valid := !s_triggerprefetch.get)
   io.tasks.prefetch_resp.foreach(_.valid := !s_prefetchack.get && w_grantfirst)
+
+  when(io.enable === false.B) {
+    hasBeenBlock := true.B
+  }
 
   val oa = io.tasks.source_a.bits
   val ob = io.tasks.source_b.bits
@@ -1358,18 +1364,18 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
       when(acquireperm_alias && !req_client_meta.hit) {
         printf("BUG_REPRODUCE: nested acquire perm alias\n")
       }
-      // promoteT_safe := false.B
-      // s_acquire := false.B
-      // w_grantfirst := false.B
-      // w_grantlast := false.B
-      // w_grant := false.B
-      // when (!bypassGet && !bypassPut_latch) {
-      //   s_grantack := false.B
-      // }
-      // need_block_downwards := true.B
+      promoteT_safe := false.B
+      s_acquire := false.B
+      w_grantfirst := false.B
+      w_grantlast := false.B
+      w_grant := false.B
+      when (!bypassGet && !bypassPut_latch) {
+        s_grantack := false.B
+      }
+      need_block_downwards := true.B
       
       // if L3 accept a ProbeAck.NtoN and nested_c_hit is false then we should wait ReleaseData
-      waitRelease := true.B
+      waitRelease := ~hasBeenBlock
     }
 
     // we assume clients will ack data for us at first,
@@ -1501,7 +1507,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.status.bits.nestC := meta_valid &&
     w_releaseack &&
     (
-      !w_probeackfirst || !w_grantfirst || (client_dir_conflict && !probe_helper_finish)
+      !w_probeackfirst || !w_grantfirst || (client_dir_conflict && !probe_helper_finish) || waitRelease
     )
   // C nest A (C -> A)
   io_is_nestedReleaseData := req.fromC && req_valid
