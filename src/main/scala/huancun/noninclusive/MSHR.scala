@@ -83,7 +83,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   val req_needT = needT(req.opcode, req.param)
   val promoteT_safe = RegInit(true.B)
   val waitRelease = RegInit(false.B)
-  val hasBeenBlock = RegInit(false.B)
+  val gotProbeAckNtoN = RegInit(false.B)
   val gotT = RegInit(false.B)
   val gotDirty = RegInit(false.B)
   val a_do_release = RegInit(false.B)
@@ -507,12 +507,25 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   }
   val nested_c_hit_reg = RegInit(false.B)
   val nested_c_hit = WireInit(nested_c_hit_reg)
+  val nested_c_miss_reg = RegInit(false.B)
+  val nested_c_miss = WireInit(nested_c_miss_reg)
   when (meta_valid && !self_meta.hit && req.fromA &&
     io.nestedwb.set === req.set && io.nestedwb.c_set_hit
   ) {
     nested_c_hit := true.B
     nested_c_hit_reg := true.B
+
+    nested_c_miss := false.B
+    nested_c_miss_reg := false.B
   }
+
+  when (meta_valid && !self_meta.hit && req.fromA &&
+    io.nestedwb.set === req.set && io.nestedwb.tag === req.tag && !io.nestedwb.c_set_hit && !nested_c_hit
+  ) {
+    nested_c_miss := true.B
+    nested_c_miss_reg := true.B
+  }
+
 
   meta_reg.clients.states.zipWithIndex.foreach {
     case (reg, i) =>
@@ -588,7 +601,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
 
     promoteT_safe := true.B
     waitRelease := false.B
-    hasBeenBlock := false.B
+    gotProbeAckNtoN := false.B
     gotT := false.B
     probe_dirty := false.B
     probes_done := 0.U
@@ -596,6 +609,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     need_block_downwards := false.B
     inv_self_dir := false.B
     nested_c_hit_reg := false.B
+    nested_c_miss_reg := false.B
     gotDirty := false.B
     acquire_flag := false.B
     a_do_release := false.B
@@ -964,10 +978,6 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.tasks.prefetch_train.foreach(_.valid := !s_triggerprefetch.get)
   io.tasks.prefetch_resp.foreach(_.valid := !s_prefetchack.get && w_grantfirst)
 
-  when(io.enable === false.B) {
-    hasBeenBlock := true.B
-  }
-
   val oa = io.tasks.source_a.bits
   val ob = io.tasks.source_b.bits
   val oc = io.tasks.source_c.bits
@@ -1140,7 +1150,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   od.sinkId := io.id
   od.useBypass := (!self_meta.hit || self_meta.state === BRANCH && req_needT) &&
     (!probe_dirty || acquire_flag && oa.opcode =/= AcquirePerm) &&
-    !(meta_reg.self.error || meta_reg.clients.error) && !req_put && !waitRelease
+    !(meta_reg.self.error || meta_reg.clients.error) && !req_put && !(gotProbeAckNtoN && waitRelease || nested_c_hit)
   od.sourceId := req.source
   od.set := req.set
   od.tag := req.tag
@@ -1375,7 +1385,8 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
       need_block_downwards := true.B
       
       // if L3 accept a ProbeAck.NtoN and nested_c_hit is false then we should wait ReleaseData
-      waitRelease := ~hasBeenBlock
+      waitRelease := !nested_c_miss && resp.param === NtoN
+      gotProbeAckNtoN := resp.param === NtoN
     }
 
     // we assume clients will ack data for us at first,
@@ -1493,7 +1504,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.status.bits.way := self_meta.way
   io.status.bits.way_reg := meta_reg.self.way  // used to ease timing issue
   io.status.bits.will_grant_data := req.fromA && od.opcode(0) && io.tasks.source_d.bits.useBypass
-  io.status.bits.will_save_data := req.fromA && (preferCache_latch || self_meta.hit) && !acquirePermMiss
+  io.status.bits.will_save_data := req.fromA && (preferCache_latch || self_meta.hit) && !acquirePermMiss && !nested_c_hit
   io.status.bits.is_prefetch := req.isPrefetch.getOrElse(false.B)
   io.status.bits.blockB := true.B
   // B nest A
