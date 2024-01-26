@@ -443,9 +443,10 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     onAReq()
   }
 
+  val nested_c_hit_wire = Wire(Bool())
   val new_clients_dir = Wire(Vec(clientBits, new ClientDirEntry))
   val new_self_dir = Wire(new SelfDirEntry)
-  new_self_dir.dirty := new_self_meta.dirty
+  new_self_dir.dirty := new_self_meta.dirty || nested_c_hit_wire
   new_self_dir.state := new_self_meta.state
   new_self_dir.clientStates := new_self_meta.clientStates
   new_self_dir.prefetch.foreach(_ := self_meta.prefetch.get || prefetch_miss)
@@ -518,6 +519,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     nested_c_miss := false.B
     nested_c_miss_reg := false.B
   }
+  nested_c_hit_wire := nested_c_hit
 
   when (meta_valid && !self_meta.hit && req.fromA &&
     io.nestedwb.set === req.set && io.nestedwb.tag === req.tag && !io.nestedwb.c_set_hit && !nested_c_hit
