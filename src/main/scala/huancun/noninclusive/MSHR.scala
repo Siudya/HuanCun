@@ -509,8 +509,8 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   val nested_c_hit_reg = RegInit(false.B)
   val nested_c_hit = WireInit(nested_c_hit_reg)
   val nested_c_miss_reg = RegInit(false.B)
-  val nested_c_miss = WireInit(nested_c_miss_reg)
-  when (meta_valid && !self_meta.hit && req.fromA &&
+  val nested_c_miss = WireInit(nested_c_miss_reg) // nested by C mshr while C mshr did not need to write tag
+  when (meta_valid /* && !self_meta.hit */ && req.fromA &&
     io.nestedwb.set === req.set && io.nestedwb.c_set_hit
   ) {
     nested_c_hit := true.B
@@ -521,7 +521,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   }
   nested_c_hit_wire := nested_c_hit
 
-  when (meta_valid && !self_meta.hit && req.fromA &&
+  when (meta_valid /* && !self_meta.hit */ && req.fromA &&
     io.nestedwb.set === req.set && io.nestedwb.tag === req.tag && !io.nestedwb.c_set_hit && !nested_c_hit
   ) {
     nested_c_miss := true.B
@@ -968,7 +968,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.tasks.source_a.valid := io.enable && (!s_acquire || !s_transferput) && s_release && s_probe && w_probeacklast && can_start
   io.tasks.source_b.valid := io.enable && Mux(!req.fromCmoHelper, !s_probe && s_release, !s_probe)
   io.tasks.source_c.valid := io.enable && (Mux(!req.fromCmoHelper, !s_release && s_writeprobe && !will_schedule_writeprobe, !s_release && w_probeack && s_writeprobe && !will_schedule_writeprobe) || !s_probeack && s_writerelease && w_sinkcack && w_probeack)
-  io.tasks.source_d.valid := io.enable && !s_execute && can_start && w_grant && s_writeprobe && w_sinkcack && w_probeacklast && s_transferput && !(waitRelease && !nested_c_hit) // TODO: is there dependency between s_writeprobe and w_probeack?
+  io.tasks.source_d.valid := io.enable && !s_execute && can_start && w_grant && s_writeprobe && w_sinkcack && w_probeacklast && s_transferput && !(waitRelease && !(nested_c_hit || nested_c_miss)) // TODO: is there dependency between s_writeprobe and w_probeack?
   io.tasks.source_e.valid := !s_grantack && w_grantfirst
   io.tasks.dir_write.valid := io.enable && !s_wbselfdir && no_wait && can_start
   io.tasks.tag_write.valid := io.enable && !s_wbselftag && no_wait && can_start
@@ -1386,6 +1386,12 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
       }
       need_block_downwards := true.B
       
+    }
+
+    when(
+      !acquire_flag && req.fromA &&
+        probeack_last && resp.last && !resp.hasData && !nested_c_hit
+    ) {
       // if L3 accept a ProbeAck.NtoN and nested_c_hit is false then we should wait ReleaseData
       waitRelease := !nested_c_miss && resp.param === NtoN
       gotProbeAckNtoN := resp.param === NtoN
