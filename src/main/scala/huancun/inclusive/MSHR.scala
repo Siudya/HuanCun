@@ -108,14 +108,13 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, DirWrite, TagWr
         Mux(gotT, Mux(req_acquire, TRUNK, TIP), BRANCH),
         MuxLookup(
           meta.state,
-          BRANCH,
-          Seq(
+          BRANCH)
+          (Seq(
             INVALID -> BRANCH,
             BRANCH -> BRANCH,
             TRUNK -> Mux(req.opcode === Hint, TRUNK, TIP),
             TIP -> Mux(meta_no_client && req_acquire, TRUNK, TIP)
-          )
-        )
+          ))
       )
     )
     new_meta.clients := Mux(meta.hit, meta.clients & ~probes_toN, 0.U) | Mux(
@@ -391,8 +390,8 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, DirWrite, TagWr
     req.fromB,
     MuxLookup(
       Cat(meta.state, probe_next_state),
-      NtoN,
-      Seq( // TODO: optimize this
+      NtoN)
+      (Seq( // TODO: optimize this
         Cat(TRUNK, TRUNK) -> TtoT,
         Cat(TIP, TIP) -> TtoT,
         Cat(TRUNK, BRANCH) -> TtoB,
@@ -402,8 +401,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, DirWrite, TagWr
         Cat(BRANCH, BRANCH) -> BtoB,
         Cat(BRANCH, INVALID) -> BtoN,
         Cat(INVALID, INVALID) -> NtoN
-      )
-    ),
+      )),
     Mux(meta.state === BRANCH, BtoN, TtoN)
   )
   oc.source := io.id
@@ -427,7 +425,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, DirWrite, TagWr
     Mux(
       !req_acquire,
       req.param,
-      MuxLookup(req.param, req.param, Seq(NtoB -> Mux(req_promoteT, toT, toB), BtoT -> toT, NtoT -> toT))
+      MuxLookup(req.param, req.param)(Seq(NtoB -> Mux(req_promoteT, toT, toB), BtoT -> toT, NtoT -> toT))
     )
 
   od.size := req.size

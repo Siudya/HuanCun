@@ -140,7 +140,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   val replace_need_release = self_meta.state > replace_clients_perm || self_meta.dirty && (self_meta.state === BRANCH || self_meta.state === TIP)
   val replace_param = MuxLookup(
     Cat(self_meta.state, replace_clients_perm),
-    TtoB,
+    TtoB)(
     Seq(
       Cat(BRANCH, INVALID) -> BtoN,
       Cat(BRANCH, BRANCH) -> BtoB,
@@ -250,7 +250,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     new_self_meta.dirty := self_meta.hit && self_meta.dirty || req.dirty && isParamFromT(req.param)
     new_self_meta.state := MuxLookup(
       req.param,
-      self_meta.state,
+      self_meta.state)(
       Seq(
         TtoT -> TRUNK,
         TtoB -> TIP,
@@ -346,7 +346,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
             BRANCH
           ),
         ),
-        MuxLookup(self_meta.state, INVALID, Seq(
+        MuxLookup(self_meta.state, INVALID)(Seq(
           INVALID -> BRANCH,
           BRANCH -> BRANCH,
           // if prefetch read && hit && self is Trunk
@@ -1123,7 +1123,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
 
   val probeack_param = MuxLookup( // TODO: optimize this
     Cat(highest_perm, probe_next_state(highest_perm, req.param)),
-    NtoN,
+    NtoN)(
     Seq(
       Cat(TRUNK, TRUNK) -> TtoT,
       Cat(TIP, TIP) -> TtoT,
@@ -1179,7 +1179,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     Mux(
       !req_acquire,
       req.param,
-      MuxLookup(req.param, req.param, Seq(NtoB -> Mux(req_promoteT, toT, toB), BtoT -> toT, NtoT -> toT))
+      MuxLookup(req.param, req.param)(Seq(NtoB -> Mux(req_promoteT, toT, toB), BtoT -> toT, NtoT -> toT))
     )
   od.size := req.size
   od.way := meta_reg.self.way
