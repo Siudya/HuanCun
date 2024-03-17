@@ -52,21 +52,38 @@ class SinkA(implicit p: Parameters) extends HuanCunModule {
   val bufVals = VecInit(beatVals.map(_.asUInt.orR)).asUInt
   val full = bufVals.andR
   val noSpace = full && hasData
-  val insertIdx = PriorityEncoder(~bufVals)
-  val insertIdxReg = RegEnable(insertIdx, a.fire && first)
+  
+  val bufferedIds = RegInit(VecInit(Seq.fill(bufBlocks)(0.U.asTypeOf(chiselTypeOf(a.bits.source)))))
+
+  val matchVec = Cat(bufVals.asBools.zip(bufferedIds).map { 
+    case(v, id) => v && id === a.bits.source
+  })
+  val hasMatch = matchVec.orR
+
+  val matchIdx = OHToUInt(matchVec.asBools.reverse)
+  val allocIdx = PriorityEncoder(~bufVals)
+  val insertIdx = Mux(hasMatch, matchIdx, allocIdx)
+  dontTouch(matchIdx)
+  dontTouch(allocIdx)
+  dontTouch(insertIdx)
+
 
   when(a.fire && hasData) {
-    when(first) {
-      putBuffer(insertIdx)(count).data := a.bits.data
-      putBuffer(insertIdx)(count).mask := a.bits.mask
-      putBuffer(insertIdx)(count).corrupt := a.bits.corrupt
-      beatVals(insertIdx)(count) := true.B
-    }.otherwise({
-      putBuffer(insertIdxReg)(count).data := a.bits.data
-      putBuffer(insertIdxReg)(count).mask := a.bits.mask
-      putBuffer(insertIdxReg)(count).corrupt := a.bits.corrupt
-      beatVals(insertIdxReg)(count) := true.B
-    })
+    when(hasMatch) { // last beat
+      putBuffer(insertIdx)(1).data := a.bits.data
+      putBuffer(insertIdx)(1).mask := a.bits.mask
+      putBuffer(insertIdx)(1).corrupt := a.bits.corrupt
+      beatVals(insertIdx)(1) := true.B
+      assert(bufferedIds(insertIdx) === a.bits.source, 
+        "buffered id => 0x%x/%d  =/=  a.bits.source => 0x%x/%d", 
+        bufferedIds(insertIdx), bufferedIds(insertIdx), a.bits.source, a.bits.source)
+    }.otherwise {
+      putBuffer(insertIdx)(0).data := a.bits.data
+      putBuffer(insertIdx)(0).mask := a.bits.mask
+      putBuffer(insertIdx)(0).corrupt := a.bits.corrupt
+      beatVals(insertIdx)(0) := true.B
+      bufferedIds(insertIdx) := a.bits.source
+    }
   }
 
   val bufferLeakCnt = RegInit(0.U(12.W)) // check buffer leak for index 0
@@ -83,8 +100,8 @@ class SinkA(implicit p: Parameters) extends HuanCunModule {
 
   val (tag, set, offset) = parseAddress(a.bits.address)
 
-  io.alloc.valid := a.valid && first && !noSpace
-  a.ready := Mux(first, io.alloc.ready && !noSpace, true.B)
+  io.alloc.valid := a.valid && Mux(hasData, !hasMatch && !noSpace, true.B)
+  a.ready := Mux(hasData, Mux(hasMatch, true.B, io.alloc.ready && !noSpace), io.alloc.ready)
 
   val allocInfo = io.alloc.bits
   allocInfo.channel := 1.U(3.W)
