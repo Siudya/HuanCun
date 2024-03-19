@@ -104,7 +104,7 @@ class SinkA(implicit p: Parameters) extends HuanCunModule {
   dontTouch(isMultiBeat)
 
   io.alloc.valid := a.valid && Mux(hasData, Mux(isMultiBeat, hasMatch, !hasMatch && !noSpace), true.B)
-  a.ready := Mux(hasData, Mux(hasMatch, true.B, io.alloc.ready && !noSpace), io.alloc.ready)
+  a.ready := Mux(hasData, Mux(hasMatch, io.alloc.ready, io.alloc.ready && !noSpace), io.alloc.ready)
 
   val allocInfo = io.alloc.bits
   allocInfo.channel := 1.U(3.W)
