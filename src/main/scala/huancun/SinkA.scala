@@ -100,7 +100,10 @@ class SinkA(implicit p: Parameters) extends HuanCunModule {
 
   val (tag, set, offset) = parseAddress(a.bits.address)
 
-  io.alloc.valid := a.valid && Mux(hasData, !hasMatch && !noSpace, true.B)
+  val isMultiBeat = a.bits.size > 5.U
+  dontTouch(isMultiBeat)
+
+  io.alloc.valid := a.valid && Mux(hasData, Mux(isMultiBeat, hasMatch, !hasMatch && !noSpace), true.B)
   a.ready := Mux(hasData, Mux(hasMatch, true.B, io.alloc.ready && !noSpace), io.alloc.ready)
 
   val allocInfo = io.alloc.bits
