@@ -106,6 +106,9 @@ class SinkA(implicit p: Parameters) extends HuanCunModule {
   io.alloc.valid := a.valid && Mux(hasData, Mux(isMultiBeat, hasMatch, !hasMatch && !noSpace), true.B)
   a.ready := Mux(hasData, Mux(hasMatch, io.alloc.ready, io.alloc.ready && !noSpace), io.alloc.ready)
 
+  // TODO: Has bug here, sourceD does not guarantee that the data will be removed before a response is sent.
+  assert(!(io.a.fire && hasMatch && first), "The masters cannot send two different requests with the same source id")
+
   val allocInfo = io.alloc.bits
   allocInfo.channel := 1.U(3.W)
   allocInfo.opcode := a.bits.opcode
