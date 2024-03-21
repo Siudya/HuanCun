@@ -972,7 +972,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.tasks.source_e.valid := !s_grantack && w_grantfirst
   io.tasks.dir_write.valid := io.enable && !s_wbselfdir && no_wait && can_start
   io.tasks.tag_write.valid := io.enable && !s_wbselftag && no_wait && can_start
-  io.tasks.client_dir_write.valid := io.enable && !s_wbclientsdir && no_wait && can_start
+  io.tasks.client_dir_write.valid := io.enable && !s_wbclientsdir && no_wait && can_start && !(waitRelease && !(nested_c_hit || nested_c_miss) && req.channel(0))
   io.tasks.client_tag_write.valid := io.enable && !s_wbclientstag && no_wait && can_start
   // io.tasks.sink_a.valid := !s_writeput && w_grant && s_writeprobe && w_probeacklast
   io.tasks.sink_a.valid := false.B
