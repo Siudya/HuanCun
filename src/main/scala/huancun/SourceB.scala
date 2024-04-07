@@ -61,4 +61,6 @@ class SourceB(implicit p: Parameters) extends HuanCunModule {
     taskLatch.needData.getOrElse(false.B).asUInt
   )
   io.b.bits.corrupt := 0.U
+
+  dontTouch(io.b.bits.source)
 }
