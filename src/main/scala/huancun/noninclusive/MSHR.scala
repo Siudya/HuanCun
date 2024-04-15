@@ -521,7 +521,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   }
   nested_c_hit_wire := nested_c_hit
 
-  when (meta_valid /* && !self_meta.hit */ && req.fromA &&
+  when (meta_valid /* && !self_meta.hit */ && (req.fromA || (req.fromB && req.fromProbeHelper)) &&
     io.nestedwb.set === req.set && io.nestedwb.tag === req.tag && !io.nestedwb.c_set_hit && !nested_c_hit
   ) {
     nested_c_miss := true.B
@@ -972,7 +972,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   io.tasks.source_e.valid := !s_grantack && w_grantfirst
   io.tasks.dir_write.valid := io.enable && !s_wbselfdir && no_wait && can_start
   io.tasks.tag_write.valid := io.enable && !s_wbselftag && no_wait && can_start
-  io.tasks.client_dir_write.valid := io.enable && !s_wbclientsdir && no_wait && can_start && !(waitRelease && !(nested_c_hit || nested_c_miss) && req.channel(0))
+  io.tasks.client_dir_write.valid := io.enable && !s_wbclientsdir && no_wait && can_start && !(waitRelease && !(nested_c_hit || nested_c_miss) && (req.fromA || (req.fromB && req.fromProbeHelper)) )
   io.tasks.client_tag_write.valid := io.enable && !s_wbclientstag && no_wait && can_start
   // io.tasks.sink_a.valid := !s_writeput && w_grant && s_writeprobe && w_probeacklast
   io.tasks.sink_a.valid := false.B
@@ -1389,7 +1389,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
     }
 
     when(
-      !acquire_flag && req.fromA &&
+      !acquire_flag && (req.fromA || (req.fromB && req.fromProbeHelper)) &&
         probeack_last && resp.last && !resp.hasData && !nested_c_hit
     ) {
       // if L3 accept a ProbeAck.NtoN and nested_c_hit is false then we should wait ReleaseData
