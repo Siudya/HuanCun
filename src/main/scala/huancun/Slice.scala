@@ -289,6 +289,7 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
 
   val nestedWb = Wire(new NestedWriteback)
   nestedWb := DontCare
+  nestedWb.valid := Mux(select_c, c_mshr.io.status.valid, bc_mshr.io.status.valid)
   nestedWb.set := Mux(select_c, c_mshr.io.status.bits.set, bc_mshr.io.status.bits.set)
   nestedWb.tag := Mux(select_c, c_mshr.io.status.bits.tag, bc_mshr.io.status.bits.tag)
 
@@ -373,6 +374,7 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
   }
 
   bc_mshr.io.nestedwb := 0.U.asTypeOf(nestedWb)
+  bc_mshr.io.nestedwb.valid := c_mshr.io.status.valid
   bc_mshr.io.nestedwb.set := c_mshr.io.status.bits.set
   bc_mshr.io.nestedwb.tag := c_mshr.io.status.bits.tag
   bc_mshr.io.nestedwb.c_set_dirty := nestedWb.c_set_dirty

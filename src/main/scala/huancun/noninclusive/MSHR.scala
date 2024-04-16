@@ -511,7 +511,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   val nested_c_miss_reg = RegInit(false.B)
   val nested_c_miss = WireInit(nested_c_miss_reg) // nested by C mshr while C mshr did not need to write tag
   when (meta_valid /* && !self_meta.hit */ && req.fromA &&
-    io.nestedwb.set === req.set && io.nestedwb.c_set_hit
+    io.nestedwb.set === req.set && io.nestedwb.valid && io.nestedwb.c_set_hit
   ) {
     nested_c_hit := true.B
     nested_c_hit_reg := true.B
@@ -522,7 +522,7 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
   nested_c_hit_wire := nested_c_hit
 
   when (meta_valid /* && !self_meta.hit */ && (req.fromA || (req.fromB && req.fromProbeHelper)) &&
-    io.nestedwb.set === req.set && io.nestedwb.tag === req.tag && !io.nestedwb.c_set_hit && !nested_c_hit
+    io.nestedwb.set === req.set && io.nestedwb.tag === req.tag && io.nestedwb.valid && !io.nestedwb.c_set_hit && !nested_c_hit
   ) {
     nested_c_miss := true.B
     nested_c_miss_reg := true.B
