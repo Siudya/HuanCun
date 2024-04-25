@@ -1390,11 +1390,11 @@ class MSHR()(implicit p: Parameters) extends BaseMSHR[DirResult, SelfDirWrite, S
 
     when(
       !acquire_flag && (req.fromA || (req.fromB && req.fromProbeHelper)) &&
-        probeack_last && resp.last && !resp.hasData && !nested_c_hit
+        resp.last && !resp.hasData && !nested_c_hit
     ) {
       // if L3 accept a ProbeAck.NtoN and nested_c_hit is false then we should wait ReleaseData
-      waitRelease := !nested_c_miss && resp.param === NtoN
-      gotProbeAckNtoN := resp.param === NtoN
+      waitRelease := waitRelease | (!nested_c_miss && resp.param === NtoN)
+      gotProbeAckNtoN := gotProbeAckNtoN | resp.param === NtoN
     }
 
     // we assume clients will ack data for us at first,
