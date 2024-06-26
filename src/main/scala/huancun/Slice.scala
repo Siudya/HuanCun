@@ -185,8 +185,8 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
   if(ctrl.nonEmpty) { // LLC
     val cmo_req = Pipeline(ctrl.get.io.cmo_req)
     sinkC.io.alloc.ready := mshrAlloc.io.c_req.ready
-    cmo_req.ready := !sinkC.io.alloc.valid && mshrAlloc.io.c_req.ready
-    mshrAlloc.io.c_req.valid := sinkC.io.alloc.valid || cmo_req.valid
+    cmo_req.ready := !sinkC.io.alloc.valid && mshrAlloc.io.c_req.ready && mshrAlloc.io.can_accept_cmo
+    mshrAlloc.io.c_req.valid := sinkC.io.alloc.valid || (cmo_req.valid && mshrAlloc.io.can_accept_cmo)
     mshrAlloc.io.c_req.bits := Mux(sinkC.io.alloc.valid,
       sinkC.io.alloc.bits,
       cmo_req.bits

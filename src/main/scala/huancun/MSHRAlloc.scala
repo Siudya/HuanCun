@@ -42,6 +42,7 @@ class MSHRAlloc(implicit p: Parameters) extends HuanCunModule  with HasPerfLoggi
     val a_req = Flipped(DecoupledIO(new MSHRRequest))
     val b_req = Flipped(DecoupledIO(new MSHRRequest))
     val c_req = Flipped(DecoupledIO(new MSHRRequest))
+    val can_accept_cmo = Output(Bool())
     // From MSHRs
     val status = Vec(mshrsAll, Flipped(ValidIO(new MSHRStatus)))
     // To MSHRs
@@ -107,6 +108,8 @@ class MSHRAlloc(implicit p: Parameters) extends HuanCunModule  with HasPerfLoggi
 
   val dirRead = io.dirRead
   val mshrFree = Cat(abc_mshr_status.map(s => !s.valid)).orR
+
+  io.can_accept_cmo := mshrFree
 
   //val can_accept_c = (mshrFree && !conflict_c) || nestC
   val can_accept_c = (!conflict_c && (mshrFree || !c_mshr_status.valid)) || nestC
