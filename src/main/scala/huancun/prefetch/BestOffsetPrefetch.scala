@@ -5,7 +5,7 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import huancun.HasHuanCunParameters
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 
 case class BOPParameters(
   rrTableEntries: Int = 256,
@@ -93,7 +93,7 @@ class TestOffsetBundle(implicit p: Parameters) extends BOPBundle {
   val resp = Flipped(DecoupledIO(new TestOffsetResp))
 }
 
-class RecentRequestTable(parentName:String = "Unknown")(implicit p: Parameters) extends BOPModule {
+class RecentRequestTable(implicit p: Parameters) extends BOPModule {
   val io = IO(new Bundle {
     val w = Flipped(DecoupledIO(UInt(fullAddressBits.W)))
     val r = Flipped(new TestOffsetBundle)
@@ -117,17 +117,11 @@ class RecentRequestTable(parentName:String = "Unknown")(implicit p: Parameters) 
   }
 
   val rrTable = Module(
-    new SRAMTemplate(rrTableEntry(), set = rrTableEntries, way = 1, shouldReset = true, singlePort = true,
-      hasMbist = cacheParams.hasMbist,
-      hasShareBus = cacheParams.hasShareBus,
-      parentName = parentName
+    new SRAMTemplate(rrTableEntry(), set = rrTableEntries, way = 1, shouldReset = true,
+      singlePort = true, hasMbist = cacheParams.hasMbist
     )
   )
-  val mbistBOPPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistBOPPipe")
-  } else {
-    None
-  }
+  val mbistBopPipeline = MbistPipeline.PlaceMbistPipeline(2, place = cacheParams.hasMbist)
 
   val wAddr = io.w.bits
   rrTable.io.w.req.valid := io.w.valid && !io.r.req.valid
@@ -236,20 +230,16 @@ class OffsetScoreTable(implicit p: Parameters) extends BOPModule {
 
 }
 
-class BestOffsetPrefetch(parentName:String = "Unknown")(implicit p: Parameters) extends BOPModule {
+class BestOffsetPrefetch(implicit p: Parameters) extends BOPModule {
   val io = IO(new Bundle() {
     val train = Flipped(DecoupledIO(new PrefetchTrain))
     val req = DecoupledIO(new PrefetchReq)
     val resp = Flipped(DecoupledIO(new PrefetchResp))
   })
 
-  val rrTable = Module(new RecentRequestTable(parentName = parentName + "rrTable_"))
+  val rrTable = Module(new RecentRequestTable)
   val scoreTable = Module(new OffsetScoreTable)
-  val mbistBOPPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(3, s"${parentName}_mbistBOPPipe")
-  } else {
-    None
-  }
+  val mbistBopPipeline = MbistPipeline.PlaceMbistPipeline(3, place = cacheParams.hasMbist)
 
   val prefetchOffset = scoreTable.io.prefetchOffset
   val oldAddr = io.train.bits.addr

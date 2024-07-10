@@ -22,9 +22,9 @@ package huancun
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import xs.utils.mbist.{MBIST, MBISTPipeline, RAM2MBIST, RAM2MBISTParams}
+import xs.utils.mbist._
 import xs.utils._
-import xs.utils.sram.{SRAMTemplate, SRAMWrapper}
+import xs.utils.sram.{SRAMTemplate, SRAMWrapper, SramHelper}
 import xs.utils.perf.HasPerfLogging
 
 class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends HuanCunModule with HasPerfLogging{
@@ -70,28 +70,37 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
         gen = UInt((8 * bankBytes).W),
         set = nrRows,
         n = cacheParams.sramDepthDiv,
-        clk_div_by_2 = cacheParams.sramClkDivBy2,
-        hasMbist = p(HCCacheParamsKey).hasMbist,
-        hasShareBus = false,
-        parentName = parentName + s"bankedData${idx}_"
+        multicycle = if(cacheParams.sramClkDivBy2) 2 else 1
       )
     )
   }
-  private val dataArrayId = SRAMTemplate.getDomainID()
+  private val dataArrayId = SramHelper.getDomainID
   private val dataVname = bankedData.head.banks.head.sramName
   private val dataFoundry = bankedData.head.banks.head.foundry
   private val dataSramInst = bankedData.head.banks.head.sramInst
   private val dataBankRange = s"[${log2Ceil(nrRows * nrBanks) - 1}:${log2Ceil(nrRows / cacheParams.sramDepthDiv)}]"
-  private val dataMbistParam = RAM2MBISTParams(
-    nrRows * nrBanks, bankBytes * 8, 0, true, dataVname, parentName + "dataArray_",
-    1, dataArrayId, false, dataFoundry, dataSramInst, sramLatency - 3, dataBankRange
+  private val dataMbistParam = Ram2MbistParams(
+    set = nrRows * nrBanks,
+    dataWidth = bankBytes * 8,
+    maskWidth = 0,
+    singlePort = true,
+    vname = dataVname,
+    nodeNum = 1,
+    nodeSuffix = "",
+    maxArrayId = dataArrayId,
+    bitWrite = false,
+    foundry = dataFoundry,
+    sramInst = dataSramInst,
+    latency = sramLatency - 3,
+    bankRange = dataBankRange,
+    holder = bankedData.head
   )
-  private val dataMbistBundle = Wire(new RAM2MBIST(dataMbistParam))
+  private val dataMbistBundle = Wire(new Ram2Mbist(dataMbistParam))
   dontTouch(dataMbistBundle)
   dataMbistBundle := 0.U.asTypeOf(dataMbistBundle)
-  if(p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus){
-    MBIST.addRamNode(dataMbistBundle, "dataStorage_", Seq(dataArrayId))
-    SRAMTemplate.increaseDomainID(1)
+  if(p(HCCacheParamsKey).hasMbist){
+    Mbist.addRamNode(dataMbistBundle, Seq(dataArrayId))
+    SramHelper.increaseDomainID(1)
   }
 
   private val dataMbistTesting = dataMbistBundle.ack && dataMbistBundle.array === dataArrayId.U
@@ -103,10 +112,7 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
   dataMbistReq.ridx := dataMbistBundle.addr_rd(log2Ceil(nrRows) - 1, 0)
   private val dataMbistSel = UIntToOH(dataMbistBundle.addr_rd(log2Ceil(nrRows * nrBanks) - 1, log2Ceil(nrRows)))
 
-  val dataMbistPipeline = MBISTPipeline.PlaceMbistPipeline(2,
-    s"${parentName}_data_mbistPipe",
-    p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus
-  )
+  val dataMbistPipeline = MbistPipeline.PlaceMbistPipeline(2, place = p(HCCacheParamsKey).hasMbist)
 
   val dataEccArray = if (eccBits > 0) {
     Seq.tabulate(nrStacks) {
@@ -115,30 +121,39 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
         gen = UInt((eccBits * stackSize).W),
         set = nrRows,
         n = cacheParams.sramDepthDiv,
-        clk_div_by_2 = cacheParams.sramClkDivBy2,
-        hasMbist = p(HCCacheParamsKey).hasMbist,
-        hasShareBus = false,
-        parentName = parentName + s"dataEccArray${idx}_"
+        multicycle = if(cacheParams.sramClkDivBy2) 2 else 1
       ))
     }
   } else {
     null
   }
-  private val eccArrayId = SRAMTemplate.getDomainID()
+  private val eccArrayId = SramHelper.getDomainID
   private val eccVname = if (eccBits > 0) dataEccArray.head.banks.head.sramName else ""
   private val eccFoundry = if (eccBits > 0) dataEccArray.head.banks.head.foundry else ""
   private val eccSramInst = if (eccBits > 0) dataEccArray.head.banks.head.sramInst else ""
   private val eccBankRange = s"[${log2Ceil(nrRows * nrStacks) - 1}:${log2Ceil(nrRows / cacheParams.sramDepthDiv)}]"
-  private val eccMbistParam = RAM2MBISTParams(
-    nrRows * nrStacks, eccBits * stackSize, 0, true, eccVname, parentName + "eccArray_",
-    1, eccArrayId, false, eccFoundry, eccSramInst, sramLatency - 3, eccBankRange
+  private val eccMbistParam = Ram2MbistParams(
+    set = nrRows * nrStacks,
+    dataWidth = eccBits * stackSize,
+    maskWidth = 0,
+    singlePort = true,
+    vname = eccVname,
+    nodeNum = 1,
+    nodeSuffix = "",
+    maxArrayId = eccArrayId,
+    bitWrite = false,
+    foundry = eccFoundry,
+    sramInst = eccSramInst,
+    latency = sramLatency - 3,
+    bankRange = eccBankRange,
+    holder = if(eccBits > 0) dataEccArray.head else null
   )
-  private val eccMbistBundle = Wire(new RAM2MBIST(eccMbistParam))
+  private val eccMbistBundle = Wire(new Ram2Mbist(eccMbistParam))
   dontTouch(eccMbistBundle)
   eccMbistBundle := 0.U.asTypeOf(eccMbistBundle)
-  if (p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus && eccBits > 0) {
-    MBIST.addRamNode(eccMbistBundle, "eccStorage_", Seq(eccArrayId))
-    SRAMTemplate.increaseDomainID(1)
+  if (p(HCCacheParamsKey).hasMbist && eccBits > 0) {
+    Mbist.addRamNode(eccMbistBundle, Seq(eccArrayId))
+    SramHelper.increaseDomainID(1)
   }
   private val eccMbistTesting = eccMbistBundle.ack && eccMbistBundle.array === eccArrayId.U
   private val eccMbistReq = Wire(new EccReq)
@@ -151,10 +166,7 @@ class DataStorage(parentName:String = "Unknown")(implicit p: Parameters) extends
 
   private val mbistTesting = dataMbistTesting | eccMbistTesting
 
-  val eccMbistPipeline = MBISTPipeline.PlaceMbistPipeline(2,
-    s"${parentName}_ecc_mbistPipe",
-    p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus && eccBits > 0
-  )
+  val eccMbistPipeline = MbistPipeline.PlaceMbistPipeline(2, place = p(HCCacheParamsKey).hasMbist && eccBits > 0)
 
   val stackRdy = if (cacheParams.sramClkDivBy2) {
     RegInit(VecInit(Seq.fill(nrStacks) {

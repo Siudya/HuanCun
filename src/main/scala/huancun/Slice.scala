@@ -28,7 +28,7 @@ import huancun.prefetch._
 import xs.utils.perf.HasPerfLogging
 import xs.utils.{FastArbiter, LatchFastArbiter, Pipeline}
 
-class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends HuanCunModule with HasPerfLogging {
+class Slice(implicit p: Parameters) extends HuanCunModule with HasPerfLogging {
   val io = IO(new Bundle {
     val in = Flipped(TLBundle(edgeIn.bundle))
     val out = TLBundle(edgeOut.bundle)
@@ -116,7 +116,7 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
   val ms_bc = ms.init.last
   val ms_c = ms.last
 
-  val dataStorage = Module(new DataStorage(parentName = parentName + "dataStorage_"))
+  val dataStorage = Module(new DataStorage)
 
   dataStorage.io.sinkD_wdata := sinkD.io.bs_wdata
   dataStorage.io.sinkD_waddr <> sinkD.io.bs_waddr
@@ -406,8 +406,8 @@ class Slice(parentName: String = "Unknown")(implicit p: Parameters) extends Huan
   }
 
   val directory = Module({
-    if (cacheParams.inclusive) new inclusive.Directory(parentName = parentName + "directory_")
-    else new noninclusive.Directory(parentName = parentName + "directory_")
+    if (cacheParams.inclusive) new inclusive.Directory
+    else new noninclusive.Directory
   })
   directory.io.read <> ctrl_arb(mshrAlloc.io.dirRead, ctrl.map(_.io.dir_read))
   ctrl.map(c => {

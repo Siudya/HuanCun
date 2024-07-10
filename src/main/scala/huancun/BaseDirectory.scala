@@ -24,7 +24,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink.TLMessages
 import xs.utils._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import xs.utils.sram._
 
 trait BaseDirResult extends HuanCunBundle {
@@ -66,8 +66,7 @@ class SubDirectory[T <: Data](
   dir_init_fn: () => T,
   dir_hit_fn: T => Bool,
   invalid_way_sel: (Seq[T], UInt) => (Bool, UInt),
-  replacement: String,
-  parentName:String = "Unknown")(implicit p: Parameters)
+  replacement: String)(implicit p: Parameters)
     extends Module {
 
   val setBits = log2Ceil(sets)
@@ -105,15 +104,8 @@ class SubDirectory[T <: Data](
   val resetFinish = RegInit(false.B)
   val resetIdx = RegInit((sets - 1).U)
   val metaArray = Module(new SRAMTemplate(chiselTypeOf(dir_init), sets, ways, singlePort = true,
-    clk_div_by_2 = clk_div_by_2,
-    hasMbist = p(HCCacheParamsKey).hasMbist,
-    hasShareBus = p(HCCacheParamsKey).hasShareBus,
-    parentName = parentName + "metaArray_")
-  )
-
-  val mbistMetaPipeline = MBISTPipeline.PlaceMbistPipeline(1,
-    s"${parentName}_mbistMetaPipe",
-    p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus
+    multicycle = if(clk_div_by_2) 2 else 1,
+    hasMbist = p(HCCacheParamsKey).hasMbist)
   )
 
   val tag_wen = io.tag_w.valid
@@ -131,16 +123,12 @@ class SubDirectory[T <: Data](
   val tagRead = Wire(Vec(ways, UInt(tagBits.W)))
   val eccRead = Wire(Vec(ways, UInt(eccBits.W)))
   val tagArray = Module(new SRAMTemplate(UInt(tagBits.W), sets, ways, singlePort = true,
-    clk_div_by_2 = clk_div_by_2,
-    hasMbist = p(HCCacheParamsKey).hasMbist,
-    hasShareBus = p(HCCacheParamsKey).hasShareBus,
-    parentName = parentName + "tagArray_"))
+    multicycle = if(clk_div_by_2) 2 else 1,
+    hasMbist = p(HCCacheParamsKey).hasMbist))
   if(eccBits > 0){
     val eccArray = Module(new SRAMTemplate(UInt(eccBits.W), sets, ways, singlePort = true,
-      clk_div_by_2 = clk_div_by_2,
-      hasMbist = p(HCCacheParamsKey).hasMbist,
-      hasShareBus = p(HCCacheParamsKey).hasShareBus,
-      parentName = parentName + "eccArray_"))
+      multicycle = if(clk_div_by_2) 2 else 1,
+      hasMbist = p(HCCacheParamsKey).hasMbist))
     eccArray.io.w(
       io.tag_w.fire,
       tagCode.encode(io.tag_w.bits.tag).head(eccBits),
@@ -150,12 +138,6 @@ class SubDirectory[T <: Data](
     eccRead := eccArray.io.r(io.read.fire, io.read.bits.set).resp.data
   } else {
     eccRead.foreach(_ := 0.U)
-  }
-
-  val mbistTagEccPipeline = if(p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistTagEccPipe")
-  } else {
-    None
   }
 
   tagArray.io.w(
@@ -188,9 +170,7 @@ class SubDirectory[T <: Data](
   } else {
     val replacer_sram = Module(new SRAMTemplate(UInt(repl.nBits.W), sets, singlePort = true,
       shouldReset = true,
-      hasMbist = p(HCCacheParamsKey).hasMbist,
-      hasShareBus = p(HCCacheParamsKey).hasShareBus,
-      parentName = parentName + "replacer_"))
+      hasMbist = p(HCCacheParamsKey).hasMbist))
     val repl_sram_r = replacer_sram.io.r(io.read.fire, io.read.bits.set).resp.data(0)
     val repl_state_hold = WireInit(0.U(repl.nBits.W))
     repl_state_hold := HoldUnless(repl_sram_r, RegNext(io.read.fire, false.B))
@@ -198,11 +178,8 @@ class SubDirectory[T <: Data](
     replacer_sram.io.w(replacer_wen, RegNext(next_state), RegNext(reqReg.set), 1.U)
     repl_state_hold
   }
-  val mbistReplPipeline = if(p(HCCacheParamsKey).hasMbist && p(HCCacheParamsKey).hasShareBus && replacement != "random") {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistReplPipe")
-  } else {
-    None
-  }
+
+  val mbistDirEccPipeline = MbistPipeline.PlaceMbistPipeline(1, place = p(HCCacheParamsKey).hasMbist)
 
   io.resp.valid := reqValidReg
   val metas = metaArray.io.r(io.read.fire, io.read.bits.set).resp.data
@@ -281,12 +258,11 @@ abstract class SubDirectoryDoUpdate[T <: Data](
   dir_init_fn: () => T,
   dir_hit_fn:  T => Bool,
   invalid_way_sel: (Seq[T], UInt) => (Bool, UInt),
-  replacement: String,
-  parentName: String = "Unknown")(implicit p: Parameters)
+  replacement: String)(implicit p: Parameters)
     extends SubDirectory[T](
       wports, sets, ways, tagBits,
       dir_init_fn, dir_hit_fn, invalid_way_sel,
-      replacement,parentName = parentName
+      replacement
     ) with HasUpdate {
 
   val update = doUpdate(reqReg.replacerInfo)

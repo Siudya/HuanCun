@@ -7,7 +7,7 @@ import freechips.rocketchip.tilelink.TLMessages
 import huancun.MetaData._
 import huancun._
 import huancun.debug.{DirectoryLogger, TypeId}
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import huancun.utils._
 import xs.utils.perf.HasPerfLogging
 import xs.utils.{GTimer, ParallelPriorityMux}
@@ -119,7 +119,7 @@ class DirectoryIO(implicit p: Parameters) extends BaseDirectoryIO[DirResult, Sel
   val clientTagWreq = Flipped(DecoupledIO(new ClientTagWrite))
 }
 
-class Directory(parentName: String = "Unknown")(implicit p: Parameters)
+class Directory(implicit p: Parameters)
     extends BaseDirectory[DirResult, SelfDirWrite, SelfTagWrite]
     with HasClientInfo with HasPerfLogging {
   val io = IO(new DirectoryIO())
@@ -194,14 +194,9 @@ class Directory(parentName: String = "Unknown")(implicit p: Parameters)
       dir_hit_fn = dirs => Cat(dirs.map(_.state =/= MetaData.INVALID)).orR,
       invalid_way_sel = client_invalid_way_fn,
       replacement = "random",
-      parentName = parentName + "clientDir_"
     )
   )
-  val mbistClientDirPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistClientDirPipe")
-  } else {
-    None
-  }
+  val mbistClientDirPipeline = MbistPipeline.PlaceMbistPipeline(2, place = cacheParams.hasMbist)
 
   def selfHitFn(dir: SelfDirEntry): Bool = dir.state =/= MetaData.INVALID
   def self_invalid_way_sel(metaVec: Seq[SelfDirEntry], repl: UInt): (Bool, UInt) = {
@@ -235,15 +230,9 @@ class Directory(parentName: String = "Unknown")(implicit p: Parameters)
       dir_hit_fn = selfHitFn,
       self_invalid_way_sel,
       replacement = cacheParams.replacement,
-      parentName = parentName + "selfDir_"
     ) with NonInclusiveCacheReplacerUpdate
   )
-
-  val mbistSelfDirPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistSelfDirPipe")
-  } else {
-    None
-  }
+  val mbistSelfDirPipeline = MbistPipeline.PlaceMbistPipeline(2, place = cacheParams.hasMbist)
 
   def addrConnect(lset: UInt, ltag: UInt, rset: UInt, rtag: UInt) = {
     assert(lset.getWidth + ltag.getWidth == rset.getWidth + rtag.getWidth)

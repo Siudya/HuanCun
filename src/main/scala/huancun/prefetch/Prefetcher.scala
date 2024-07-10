@@ -82,7 +82,7 @@ class Prefetcher(parentName:String = "UnKnown")(implicit p: Parameters) extends 
 
   prefetchOpt.get match {
     case bop: BOPParameters =>
-      val pft = Module(new BestOffsetPrefetch(parentName = parentName))
+      val pft = Module(new BestOffsetPrefetch)
       val pftQueue = Module(new PrefetchQueue)
       val pipe = Module(new Pipeline(io.req.bits.cloneType, 1))
       pft.io.train <> io.train
@@ -92,7 +92,7 @@ class Prefetcher(parentName:String = "UnKnown")(implicit p: Parameters) extends 
       io.req <> pipe.io.out
     case receiver: PrefetchReceiverParams =>
       val l1_pf = Module(new PrefetchReceiver())
-      val bop = Module(new BestOffsetPrefetch(parentName = parentName)(p.alterPartial({
+      val bop = Module(new BestOffsetPrefetch()(p.alterPartial({
         case HCCacheParamsKey => p(HCCacheParamsKey).copy(prefetch = Some(BOPParameters()))
       })))
       val pftQueue = Module(new PrefetchQueue)

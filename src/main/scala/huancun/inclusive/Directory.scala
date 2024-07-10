@@ -4,7 +4,7 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import huancun._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import xs.utils.ParallelPriorityMux
 
 // TODO: inclusive may have cache aliase too
@@ -67,15 +67,11 @@ class Directory(parentName:String = "Unknown")(implicit p: Parameters) extends B
       },
       dir_hit_fn = x => x.state =/= MetaData.INVALID,
       invalid_way_sel = invalid_way_sel,
-      replacement = cacheParams.replacement,
-      parentName = parentName + "dir_"
+      replacement = cacheParams.replacement
     ) with UpdateOnAcquire
   )
-  val mbistDirPipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistDirPipe")
-  } else {
-    None
-  }
+  val mbistDirPipeline = MbistPipeline.PlaceMbistPipeline(2, place =  cacheParams.hasMbist)
+
   val rport = dir.io.read
   val req = io.read
   rport.valid := req.valid

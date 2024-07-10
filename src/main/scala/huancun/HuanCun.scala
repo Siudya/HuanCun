@@ -27,8 +27,8 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tilelink.TLMessages._
 import freechips.rocketchip.util.{BundleFieldBase, UIntToOH1}
 import huancun.prefetch._
-import xs.utils.mbist.{MBISTInterface, MBISTPipeline}
-import xs.utils.sram.SRAMTemplate
+import xs.utils.mbist.{MbistInterface, MbistPipeline}
+import xs.utils.sram.{SRAMTemplate, SramHelper}
 import xs.utils.RegNextN
 import xs.utils._
 import huancun.noninclusive.MSHR
@@ -354,16 +354,12 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
       case (((in, edgeIn), (out, edgeOut)), i) =>
         require(in.params.dataBits == out.params.dataBits)
         val rst = if(cacheParams.level == 3 && !cacheParams.simulation) ResetGen(2, dfx_reset) else reset
-        val slice = withReset(rst){ Module(new Slice(parentName = parentName + s"slice${i}_")(p.alterPartial {
+        val slice = withReset(rst){ Module(new Slice()(p.alterPartial {
           case EdgeInKey  => edgeIn
           case EdgeOutKey => edgeOut
           case BankBitsKey => bankBits
         })) }
-        val mbistSlicePipeline = if(cacheParams.hasMbist && cacheParams.hasShareBus) {
-          MBISTPipeline.PlaceMbistPipeline(3, s"MBIST_L3S${i}", true)
-        } else {
-          None
-        }
+        val mbistSlicePl = MbistPipeline.PlaceMbistPipeline(3, s"MBIST_L3S$i", cacheParams.hasMbist)
         slice.io.in <> in
         in.b.bits.address := restoreAddress(slice.io.in.b.bits.address, i)
         out <> slice.io.out
@@ -398,13 +394,7 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
           }
         }
         io.perfEvents(i) := slice.perfinfo
-        (slice,mbistSlicePipeline)
-    }
-   
-    if(cacheParams.level == 2) {
-      println(s"L2:hasMbist = ${cacheParams.hasMbist}, hasShareBus = ${cacheParams.hasShareBus}")
-    } else {
-      println(s"L3:hasMbist = ${cacheParams.hasMbist}, hasShareBus = ${cacheParams.hasShareBus}")
+        (slice, mbistSlicePl)
     }
     val slices = slicesWithPipelines.map(_._1)
     val mbistPipes = slicesWithPipelines.map(_._2)
@@ -447,35 +437,8 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
           println(s"\t${i} <= ${c.name}")
       }
     }
-    val hasShareBus = cacheParams.hasMbist && cacheParams.hasShareBus
-    /*****************************************l2 Mbist Share Bus***************************************/
-    val l2TopPipeLine = if(hasShareBus && cacheParams.level == 2) {
-      MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L2", true)
-    } else {
-      None
-    }
-    val l2Intf = if (hasShareBus && cacheParams.level == 2) {
-      Some(l2TopPipeLine.zipWithIndex.map({ case (pip, idx) => {
-        val params = pip.nodeParams
-        val intf = Module(new MBISTInterface(
-          params = Seq(params),
-          ids = Seq(pip.childrenIds),
-          name = s"MBIST_intf_l2",
-          pipelineNum = 1
-        ))
-        intf.toPipeline.head <> pip.mbist
-        intf.mbist := DontCare
-        pip.genCSV(intf.info, s"MBIST_L2")
-        dontTouch(intf.mbist)
-        //TODO: add mbist controller connections here
-        intf
-      }
-      }))
-    } else {
-      None
-    }
     /****************************************Broadcast Signals*******************************************/
-    val sigFromSrams = if(cacheParams.hasMbist) Some(SRAMTemplate.genBroadCastBundleTop()) else None
+    private val sigFromSrams = if(cacheParams.hasMbist) Some(SramHelper.genBroadCastBundleTop()) else None
     val dft = if(cacheParams.hasMbist) Some(IO(sigFromSrams.get.cloneType)) else None
     if(cacheParams.hasMbist) {
       dft.get <> sigFromSrams.get
