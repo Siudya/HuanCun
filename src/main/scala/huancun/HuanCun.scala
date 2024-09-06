@@ -519,8 +519,8 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     }
 
     val topDown = topDownOpt.map(_ => Module(new TopDownMonitor()(p.alterPartial {
-      case EdgeInKey => ()=>edgeIn
-      case EdgeOutKey => ()=>edgeOut
+      case EdgeInKey => node.in.head._2
+      case EdgeOutKey => node.out.head._2
       case BankBitsKey => bankBits
     })))
     topDown match {
