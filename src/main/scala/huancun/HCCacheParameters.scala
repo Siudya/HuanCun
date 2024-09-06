@@ -88,6 +88,8 @@ case class HCCacheParameters
   enableDebug: Boolean = false,
   enablePerf: Boolean = false,
   enableTopDown: Boolean = false,
+  hartIds: Seq[Int] = Seq[Int](),
+  elaboratedTopDown: Boolean = true,
   channelBytes: TLChannelBeatBytes = TLChannelBeatBytes(32),
   prefetch: Option[PrefetchParameters] = None,
   prefetchRecv: Option[PrefetchParameters] = None,

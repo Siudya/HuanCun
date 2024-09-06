@@ -37,6 +37,11 @@ class Slice(implicit p: Parameters) extends HuanCunModule with HasPerfLogging {
     val ctl_req = Flipped(DecoupledIO(new CtrlReq()))
     val ctl_resp = DecoupledIO(new CtrlResp())
     val ctl_ecc = DecoupledIO(new EccInfo())
+    val ms_status = topDownOpt.map(_ => Vec(mshrsAll, ValidIO(new MSHRStatus)))
+    val dir_result = topDownOpt.map(_ => ValidIO(
+      if (cacheParams.inclusive) new inclusive.DirResult()
+      else new noninclusive.DirResult()
+    ))
   })
   println(s"clientBits: $clientBits")
 
@@ -646,7 +651,16 @@ class Slice(implicit p: Parameters) extends HuanCunModule with HasPerfLogging {
     io.ctl_req.ready := false.B
     io.ctl_resp.valid := false.B
   }
-
+  topDownOpt.foreach (
+    _ => {
+      io.ms_status.get.zip(ms).foreach {
+        case (out, mshr) =>
+          out := mshr.io.status
+      }
+      io.dir_result.get := directory.io.result
+    }
+  )
+  
   def pftReqToMSHRReq(pftReq: DecoupledIO[PrefetchReq]): DecoupledIO[MSHRRequest] = {
     val mshrReq = Wire(DecoupledIO(new MSHRRequest()))
     val address = Cat(pftReq.bits.tag, pftReq.bits.set, 0.U(offsetBits.W))

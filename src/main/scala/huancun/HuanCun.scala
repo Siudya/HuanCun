@@ -38,6 +38,7 @@ import xs.utils.perf.HasPerfLogging
 trait HasHuanCunParameters {
   val p: Parameters
   val cacheParams = p(HCCacheParamsKey)
+  val topDownOpt  = if(cacheParams.elaboratedTopDown) Some(true) else None
   val prefetchOpt = cacheParams.prefetch
   val prefetchLlcRecvOpt = cacheParams.prefetchRecv
   val hasPrefetchBit = prefetchOpt.nonEmpty && prefetchOpt.get.hasPrefetchBit
@@ -262,6 +263,10 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     val io = IO(new Bundle {
       val perfEvents = Vec(banks, Vec(numPCntHc,Output(UInt(6.W))))
       val ecc_error = Valid(UInt(64.W))
+      val debugTopDown = new Bundle {
+        val robHeadPaddr = Vec(cacheParams.hartIds.length, Flipped(Valid(UInt(36.W))))
+        val addrMatch = Vec(cacheParams.hartIds.length, Output(Bool()))
+      }
     })
 
     val sizeBytes = cacheParams.toCacheParams.capacity.toDouble
@@ -511,6 +516,23 @@ class HuanCun(parentName:String = "Unknown")(implicit p: Parameters) extends Laz
         XSPerfAccumulate("L3_Slice_can_receive_pf", VecInit(slices.map((slice: Slice) => slice.io.llcRecv.get.ready)).asUInt.orR)
       }
 
+    }
+
+    val topDown = topDownOpt.map(_ => Module(new TopDownMonitor()(p.alterPartial {
+      case EdgeInKey => ()=>edgeIn
+      case EdgeOutKey => ()=>edgeOut
+      case BankBitsKey => bankBits
+    })))
+    topDown match {
+      case Some(t) =>
+        t.io.msStatus.zip(slices).foreach {
+          case (in, s) => in := s.io.ms_status.get
+        }
+        t.io.dirResult.zip(slices).foreach {
+          case (res, s) => res := s.io.dir_result.get
+        }
+        t.io.debugTopDown <> io.debugTopDown
+      case None => io.debugTopDown.addrMatch.foreach(_ := false.B)
     }
   }
 }
